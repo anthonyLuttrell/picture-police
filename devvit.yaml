@@ -1,0 +1,7 @@
+name: picture-police
+version: 0.0.1
+
+permission:
+  http:
+    domains:
+      - vision.googleapis.com

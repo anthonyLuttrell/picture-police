@@ -3,7 +3,10 @@ import {Devvit, SettingScope} from "@devvit/public-api";
 Devvit.configure(
     {
         redditAPI: true,
-        http: true,
+        http: {
+            enabled: true,
+            domains: ["reddit.com", "redd.it"]
+        },
     });
 
 Devvit.addSettings([
@@ -67,11 +70,13 @@ Devvit.addTrigger({
                     imgUrls.push(url);
                 }
             }
-        } else if (post.url.match(/\.(jpeg|jpg|png)$/i))
+        }
+        else if (post.url.match(/\.(jpeg|jpg|png)$/i))
         {
             console.debug(`Adding single URL: ${post.url}`);
             imgUrls.push(post.url);
-        } else
+        }
+        else
         {
             console.debug("No image found in post.");
             return;
@@ -115,12 +120,15 @@ Devvit.addTrigger({
             );
 
             const redditMatches = result.fullMatchingImages.filter((page: any) =>
-                page.url.includes("reddit.com") && page.url.includes("redd.it")
+                page.url.includes("reddit.com") || page.url.includes("redd.it")
             );
+
+            console.debug(`redditMatches length: ${redditMatches.length}`);
 
             for (const match of redditMatches)
             {
-                const submissionId = getSubmissionId(match, context);
+                console.debug(`Fetching URL: ${match.url}`);
+                const submissionId = getSubmissionId(match.url, context);
             }
 
             for (const page of result.fullMatchingImages)
@@ -183,20 +191,29 @@ Devvit.addTrigger({
     },
 });
 
-async function getSubmissionId(mediaUrl: string, context: Devvit.Context): Promise<string | null>
+async function getSubmissionId(mediaUrl: string, ctx: Devvit.Context): Promise<string | null>
 {
     const cleanedUrl = mediaUrl
         .replace("preview.redd.it", "i.redd.it")
         .split('?')[0];
 
+    console.debug(`Cleaned URL: ${cleanedUrl}`);
     const infoUrl = `https://www.reddit.com/api/info.json?url=${encodeURIComponent(cleanedUrl)}`;
 
     try
     {
         // Use the native Devvit fetch, which is already configured for Reddit
         // TODO need to fetch submission ID
-        const response = await context.http.fetch(infoUrl);
+
+        const response = await ctx.reddit.fetch(infoUrl, {headers: {'User-Agent': 'devvit:picture-police:v1.0 (by /u/96dpi)'}});
+        if (!response.ok)
+        {
+            console.error("Response not OK:", response.status, response.statusText);
+            return null;
+        }
+
         const data = await response.json();
+        console.debug(`JSON response: ${JSON.stringify(data, null, 2)}`);
 
         // 3. Extract the Submission ID from the JSON response
         if (data.data && data.data.children && data.data.children.length > 0)

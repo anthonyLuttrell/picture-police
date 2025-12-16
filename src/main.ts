@@ -51,14 +51,39 @@ async function checkGoogleVision(imgUrl: string, apiKey: string)
     }
 }
 
+async function getOpFromUrl(url: string, reddit: RedditAPIClient): Promise<string | undefined>
+{
+    const match = url.match(/\/comments\/([a-z0-9]+)/i);
+    if (!match) return undefined;
+
+    const postId = `t3_${match[1]}`;
+    console.log(`postId: ${postId}`);
+    try
+    {
+        const post = await reddit.getPostById(postId);
+        return post.authorName;
+    }
+    catch (e)
+    {
+        return undefined;
+    }
+}
+
 Devvit.addTrigger({
     event: 'PostCreate',
     onEvent: async (event, context) =>
     {
         const post = event.post;
-        const imgUrls = [];
+        const author = event.author;
 
-        if (post === undefined) return console.error("Bad Post!");
+        if (post === undefined || author === undefined)
+        {
+            return console.error("Bad Post!");
+        }
+
+        const imgUrls = [];
+        const authorName = author.name;
+        console.debug(`Post by ${authorName}`);
 
         if (post.isGallery)
         {
@@ -112,33 +137,68 @@ Devvit.addTrigger({
                 continue;
             }
 
-            const matchCount = result.fullMatchingImages.length;
+            const fullMatches: string[] = [];
+            const matches = result.pagesWithMatchingImages;
+            for (const match of matches)
+            {
+                if (match.fullMatchingImages &&
+                    match.fullMatchingImages.length > 0)
+                {
+                    console.debug(`Adding URL to fullMatches: ${match.url}`);
+                    fullMatches.push(match.url);
+                }
+            }
+
+            const matchCount = fullMatches.length;
             totalMatchCount += matchCount;
 
-            const externalMatches = result.fullMatchingImages.filter((page: any) =>
-                !page.url.includes("reddit.com") && !page.url.includes("redd.it")
+            const externalMatches = fullMatches.filter((url: string) =>
+                !url.includes("reddit.com") && !url.includes("redd.it")
             );
 
-            const redditMatches = result.fullMatchingImages.filter((page: any) =>
-                page.url.includes("reddit.com") || page.url.includes("redd.it")
+            const redditSubmissions = [];
+            const redditMatches = fullMatches.filter((url: string) =>
+                url.includes("reddit.com") || url.includes("redd.it")
             );
 
             console.debug(`redditMatches length: ${redditMatches.length}`);
 
-            for (const match of redditMatches)
+            for (const url of redditMatches)
             {
-                console.debug(`Fetching URL: ${match.url}`);
-                const submissionId = getSubmissionId(match.url, context);
+                if (url.includes("/comments/") &&
+                    !url.includes("/?tl=")) // same post, different language
+                {
+                    console.debug(`Adding URL to redditSubmissions: ${url}`);
+                    redditSubmissions.push(url);
+                }
+                // console.debug(`Fetching URL: ${match.url}`);
+                // const submissionId = getSubmissionId(match.url, context);
             }
 
-            for (const page of result.fullMatchingImages)
-            {   // debug only
-                console.log(`full match: ${page.url}`);
+            console.debug(`redditSubmissions length: ${redditSubmissions.length}`);
+
+            for (const url of redditSubmissions)
+            {
+                const author = await getOpFromUrl(url, context.reddit);
+
+                if (author)
+                {
+                    console.log(`Successfully found OP: u/${author}`);
+                }
+                else
+                {
+                    console.log("OP not found.");
+                }
             }
 
-            for (const page of externalMatches)
+            // for (const page of result.fullMatchingImages)
+            // {   // debug only
+            //     console.log(`full match: ${page.url}`);
+            // }
+
+            for (const url of externalMatches)
             {   // debug only
-                console.log(`external match: ${page.url}`);
+                console.log(`external match: ${url}`);
             }
 
             let score = 0;
@@ -227,8 +287,7 @@ async function getSubmissionId(mediaUrl: string, ctx: Devvit.Context): Promise<s
             console.log(`Successfully extracted Submission ID: ${submissionId}`);
             return submissionId;
         }
-    }
-    catch (error)
+    } catch (error)
     {
         console.error("Error fetching submission info from API:", error);
     }

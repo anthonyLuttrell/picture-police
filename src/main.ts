@@ -12,10 +12,10 @@ Devvit.configure(
 Devvit.addSettings([
     {
         type: 'string',
-        name: 'GOOGLE_VISION_KEY', // <-- MUST match the CLI key exactly
+        name: 'GOOGLE_VISION_KEY',
         label: 'Google Vision API Key',
         isSecret: true,
-        scope: SettingScope.App, // <-- Crucial for CLI access
+        scope: SettingScope.App,
     },
 ]);
 
@@ -44,7 +44,8 @@ async function checkGoogleVision(imgUrl: string, apiKey: string)
 
         const data = await response.json();
         return data.responses[0].webDetection;
-    } catch (e)
+    }
+    catch (e)
     {
         console.error("Google API Error:", e);
         return null;
@@ -54,10 +55,12 @@ async function checkGoogleVision(imgUrl: string, apiKey: string)
 async function getOpFromUrl(url: string, reddit: RedditAPIClient): Promise<string | undefined>
 {
     const match = url.match(/\/comments\/([a-z0-9]+)/i);
-    if (!match) return undefined;
+    if (!match)
+    {
+        return undefined;
+    }
 
     const postId = `t3_${match[1]}`;
-    console.log(`postId: ${postId}`);
     try
     {
         const post = await reddit.getPostById(postId);
@@ -76,38 +79,43 @@ Devvit.addTrigger({
         const post = event.post;
         const author = event.author;
 
-        if (post === undefined || author === undefined)
+        if (post === undefined)
         {
-            return console.error("Bad Post!");
+            return console.error("Unable to get post data.");
         }
 
-        const imgUrls = [];
+        if (author === undefined)
+        {
+            return console.error("Unable to get author data.");
+        }
+
+        const userImgUrls = [];
         const authorName = author.name;
-        console.debug(`Post by ${authorName}`);
+        console.log(`Processing new post "${post.title}" by u/${authorName}`);
 
         if (post.isGallery)
         {
+            console.debug("Detected gallery post, checking for gallery image URLs.")
             for (const url of post.galleryImages)
             {
                 if (url.match(/\.(jpeg|jpg|png)$/i))
                 {
-                    console.debug(`Adding gallery URL: ${url}`);
-                    imgUrls.push(url);
+                    userImgUrls.push(url);
                 }
             }
+            console.debug(`Added ${userImgUrls.length} gallery image URLs.`);
         }
         else if (post.url.match(/\.(jpeg|jpg|png)$/i))
         {
             console.debug(`Adding single URL: ${post.url}`);
-            imgUrls.push(post.url);
+            userImgUrls.push(post.url);
         }
         else
-        {
+        {   // TODO check for www.imgur.com links in post body?
             console.debug("No image found in post.");
             return;
         }
 
-        console.debug("Getting API Key...");
         const apiKey = await context.settings.get('GOOGLE_VISION_KEY');
         if (!apiKey)
         {
@@ -121,80 +129,86 @@ Devvit.addTrigger({
             return;
         }
 
-        console.debug(`Checking image(s) for post: ${post.title}`);
         let totalScore = 0;
         let totalMatchCount = 0;
+        let numOpMatches = 0;
         const matchUrls = [];
 
-        for (const url of imgUrls)
+        for (const url of userImgUrls)
         {
             console.debug(`Working image: ${url}`);
             const result = await checkGoogleVision(url, apiKey);
 
-            if (!result || !result.pagesWithMatchingImages)
+            if (!result)
             {
-                console.debug("No matches found. Original content?");
+                console.log("Bad result from Google Vision API.");
+                continue;
+            }
+
+            if (!result.pagesWithMatchingImages)
+            {
+                console.log("No matches found in pagesWithMatchingImages");
+                if (result.partialMatchingImages && result.partialMatchingImages.length > 0)
+                {
+                    console.debug(`There are ${result.partialMatchingImages.length} partial matching images`);
+                }
                 continue;
             }
 
             const fullMatches: string[] = [];
-            const matches = result.pagesWithMatchingImages;
-            for (const match of matches)
-            {
+            for (const match of result.pagesWithMatchingImages)
+            {   // pagesWithMatchingImages can have more than 1 URL per image,
+                // so we must find unique URLs
+                console.debug(`pagesWithMatchingImages length: ${result.pagesWithMatchingImages.length}`);
                 if (match.fullMatchingImages &&
                     match.fullMatchingImages.length > 0)
                 {
-                    console.debug(`Adding URL to fullMatches: ${match.url}`);
                     fullMatches.push(match.url);
                 }
             }
 
-            const matchCount = fullMatches.length;
-            totalMatchCount += matchCount;
+            console.debug(fullMatches);
 
-            const externalMatches = fullMatches.filter((url: string) =>
-                !url.includes("reddit.com") && !url.includes("redd.it")
-            );
-
-            const redditSubmissions = [];
-            const redditMatches = fullMatches.filter((url: string) =>
-                url.includes("reddit.com") || url.includes("redd.it")
+            const {redditMatches, externalMatches} = fullMatches.reduce(
+                (acc, url) =>
+                {
+                    const isReddit = url.includes("reddit.com") || url.includes("redd.it");
+                    if (isReddit)
+                    {
+                        if (url.includes("/comments/") && !url.includes("/?tl="))
+                        {
+                            acc.redditMatches.push(url);
+                        }
+                    }
+                    else
+                    {
+                        acc.externalMatches.push(url);
+                    }
+                    return acc;
+                },
+                {redditMatches: [] as string[], externalMatches: [] as string[]}
             );
 
             console.debug(`redditMatches length: ${redditMatches.length}`);
+            console.debug(`externalMatches length: ${externalMatches.length}`);
+            totalMatchCount = redditMatches.length + externalMatches.length;
 
             for (const url of redditMatches)
             {
-                if (url.includes("/comments/") &&
-                    !url.includes("/?tl=")) // same post, different language
+                const foundAuthor = await getOpFromUrl(url, context.reddit);
+
+                if (!foundAuthor)
                 {
-                    console.debug(`Adding URL to redditSubmissions: ${url}`);
-                    redditSubmissions.push(url);
+                    console.error("Unable to find username from matching post.");
                 }
-                // console.debug(`Fetching URL: ${match.url}`);
-                // const submissionId = getSubmissionId(match.url, context);
-            }
 
-            console.debug(`redditSubmissions length: ${redditSubmissions.length}`);
-
-            for (const url of redditSubmissions)
-            {
-                const author = await getOpFromUrl(url, context.reddit);
-
-                if (author)
+                if (authorName === foundAuthor)
                 {
-                    console.log(`Successfully found OP: u/${author}`);
-                }
-                else
-                {
-                    console.log("OP not found.");
+                    console.log(`Matched OP: u/${foundAuthor}`);
+                    totalMatchCount--;
+                    numOpMatches++;
                 }
             }
-
-            // for (const page of result.fullMatchingImages)
-            // {   // debug only
-            //     console.log(`full match: ${page.url}`);
-            // }
 
             for (const url of externalMatches)
             {   // debug only
@@ -203,20 +217,46 @@ Devvit.addTrigger({
 
             let score = 0;
 
-            // Simple Scoring Logic
-            if (matchCount > 10) score = 99;      // Viral / Everywhere
-            else if (matchCount > 3) score = 75;  // Likely copied
-            else if (matchCount > 0) score = 30;  // Low confidence - ask OP to prove this is their OC image
+            if (totalMatchCount > 10 ||
+                (numOpMatches == 0 && redditMatches.length > 0))
+            {
+                score = 100;
+            }
+            else if (totalMatchCount > 3)
+            {
+                score = 90;
+            }
+            else if (totalMatchCount > 1)
+            {
+                score = 75;
+            }
+            else if (totalMatchCount > 0)
+            {
+                score = 50;
+            }// Low confidence - ask OP to prove this is their OC image
 
             totalScore += score;
-            console.log(`Score: ${score}% | Matches: ${matchCount}`);
+            console.log(`Score: ${score}% | Matches: ${totalMatchCount}`);
 
             // Action: Report or Comment if score is high
-            if (score >= 70)
+            if (score > 0)
             {
                 console.log("Potential Stolen Content Detected!");
-                matchUrls.push(result.fullMatchingImages[0].url);
-            } else
+                // FIXME this needs to pull from the correct array
+                if (redditMatches.length > 0)
+                {   // Prefer Reddit examples, and just show the first one
+                    matchUrls.push(redditMatches[0]);
+                }
+                else if (externalMatches.length > 0)
+                {
+                    matchUrls.push(externalMatches[0]);
+                }
+                else
+                {
+                    console.warn("Coding error: Missing a condition!");
+                }
+            }
+            else
             {
                 console.log("No stolen content detected.");
             }
@@ -241,7 +281,7 @@ Devvit.addTrigger({
 
         // remove the last two newlines
         urlStr = urlStr.slice(0, -2);
-        const avgScore = totalScore / matchUrls.length;
+        const avgScore = Math.round(totalScore / matchUrls.length);
 
         await context.reddit.submitComment({
             id: post.id,
@@ -250,49 +290,5 @@ Devvit.addTrigger({
         // TODO add an option to print a string on 100% confidence of original content (no matches)
     },
 });
-
-async function getSubmissionId(mediaUrl: string, ctx: Devvit.Context): Promise<string | null>
-{
-    const cleanedUrl = mediaUrl
-        .replace("preview.redd.it", "i.redd.it")
-        .split('?')[0];
-
-    console.debug(`Cleaned URL: ${cleanedUrl}`);
-    const infoUrl = `https://www.reddit.com/api/info.json?url=${encodeURIComponent(cleanedUrl)}`;
-
-    try
-    {
-        // Use the native Devvit fetch, which is already configured for Reddit
-        // TODO need to fetch submission ID
-
-        const response = await ctx.reddit.fetch(infoUrl, {headers: {'User-Agent': 'devvit:picture-police:v1.0 (by /u/96dpi)'}});
-        if (!response.ok)
-        {
-            console.error("Response not OK:", response.status, response.statusText);
-            return null;
-        }
-
-        const data = await response.json();
-        console.debug(`JSON response: ${JSON.stringify(data, null, 2)}`);
-
-        // 3. Extract the Submission ID from the JSON response
-        if (data.data && data.data.children && data.data.children.length > 0)
-        {
-            // The post data will be the first item in the 'children' array
-            const postData = data.data.children[0].data;
-
-            // postData.id is the short 6-character submission ID (e.g., "a1b2c3")
-            const submissionId = postData.id;
-
-            console.log(`Successfully extracted Submission ID: ${submissionId}`);
-            return submissionId;
-        }
-    } catch (error)
-    {
-        console.error("Error fetching submission info from API:", error);
-    }
-
-    return null;
-}
 
 export default Devvit;

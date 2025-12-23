@@ -38,15 +38,16 @@ export class Match
             const isExternal: boolean = !page.url.includes("reddit.com") &&
                                         !page.url.includes("redd.it");
 
-            if (hasFullMatch && (goodRedditUrl || isExternal))
+            if ((hasFullMatch || hasPartialMatch) &&
+                (goodRedditUrl || isExternal))
             {
                 console.debug(`Adding url: ${page.url}`);
                 this.matchList.push(page.url);
             }
-            else if (!hasFullMatch && hasPartialMatch)
-            {   // TODO do we want to handle partial matches?
-                console.log("Only partial matches found.");
-            }
+            // else if (!hasFullMatch && hasPartialMatch)
+            // {   // TODO do we want to handle partial matches?
+            //     console.log("Only partial matches found.");
+            // }
         }
     }
 

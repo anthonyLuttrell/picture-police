@@ -143,21 +143,38 @@ export async function comment(
     urlsToPrint.forEach((url, idx) =>
     {
         if (!url) return;
-        str += `Image [${idx}/${numUserImages}]: ${url}\n\n`;
+        str += `Image [${idx}/${numUserImages}]: `;
+        if (url.includes("redd.it") || url.includes("reddit.com"))
+        {
+            str += `${url}\n\n`;
+        }
+        else
+        {
+            str += `>!${url}!<\n\n`;
+        }
     });
-    // str = str.slice(0, -2); // remove the last two newlines
 
+    // TODO add disclaimer about external links only if it's an external link
+    // TODO remove the [1/1] if it's only 1 image
     const commentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
         `I am **${avgScore}%** confident that this is a **stolen** image. ` +
         `I found duplicate images on **${totalMatchCount}** other sites. ` +
-        `Here is an example image found on one other site:\n\n `+
-        `${str}`;
+        `Here is an example of what I found:\n\n `+
+        `${str}\n---\n` +
+        `Note: Click on links at your own risk. This bot does not guarantee ` +
+        `the security of any external websites you visit.\n\n` +
+        `[Click here to submit feedback]` +
+        `(https://www.reddit.com/message/compose/?to=picture-police&subject=Picture%20Police%20Feedback&message=Please%20describe%20the%20issue%20or%20feedback%20here:)`;
 
     const commentStrPlural = `🚨 **Picture Police** 🚨\n\n` +
         `I am **${avgScore}%** confident that this post contains **stolen** ` +
         `images. I found duplicate images on **${totalMatchCount}** other ` +
         `sites. Here is an example of each image found on another site:\n\n `+
-        `${str}`;
+        `${str}\n---\n` +
+        `Note: Click on links at your own risk. This bot does not guarantee ` +
+        `the security of any external websites you visit.\n\n` +
+        `[Click here to submit feedback]` +
+        `(https://www.reddit.com/message/compose/?to=picture-police&subject=Picture%Police%20Feedback&message=Please%20describe%20the%20issue%20or%20feedback%20here:)`;
 
     const commentStr = numUserImages === 1 ?
         commentStrSingular : commentStrPlural;

@@ -28,23 +28,7 @@ export async function reverseImageSearch(
             continue;
         }
 
-        // `pagesWithMatchingImages`, if not undefined, will contain an array of
-        // objects, each with the properties `url`, `pageTitle`, and either
-        // `fullMatchingImages` or `partialMatchingImages`. `url` is a string to
-        // the webpage containing the matching image(s). This is the string we
-        // want to capture, but only if the array `fullMatchingImages` contains
-        // at least one entry.
-        const matchingPages = result.pagesWithMatchingImages;
-
-        if (matchingPages && matchingPages.length > 0)
-        {
-            console.debug(`Creating new Match instance with ${matchingPages.length} matching pages.`);
-            sourceMatches.push(new Match(matchingPages));
-        }
-        else
-        {
-            console.log("No pages with matching images found.");
-        }
+        sourceMatches.push(new Match(result.pagesWithMatchingImages));
     }
     return sourceMatches;
 }
@@ -65,11 +49,13 @@ export async function findMatchingUsernames(
     authorName: string,
     sourceMatches: Match[]|[]): Promise<number>
 {
-    const urlsToRemove: string[] = [];
     console.debug(`sourceMatches contains [${sourceMatches.length}] matches in "findMatchingUsernames".`);
+    let totalRemoved = 0;
 
     for (const match of sourceMatches)
     {
+        const urlsToRemove: string[] = [];
+
         for (const url of match.matches)
         {
             if ((url.includes("reddit.com") || url.includes("redd.it")) &&
@@ -99,5 +85,5 @@ export async function findMatchingUsernames(
         match.removeMatches(urlsToRemove);
         // do we need to clear urlsToRemove here?
     }
-    return urlsToRemove.length;
+    return totalRemoved;
 }

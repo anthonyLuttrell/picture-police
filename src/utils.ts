@@ -62,6 +62,11 @@ export function getGalleryUrls(post: any): string[] | []
         (url: string) => url.match(/\.(jpeg|jpg|png)$/i)
     );
 
+    for (const [idx, url] of urlList.entries())
+    {
+        console.debug(`posted gallery image [${idx + 1}/${urlList.length}]: ${url}`);
+    }
+
     return urlList.length > 0 ? urlList : [];
 }
 
@@ -84,13 +89,17 @@ export async function comment(
     context: any,
     postId: string): Promise<void>
 {
-    const urlsToPrint = new Map<number, string>();
+    let maxScore: number = 0;
     let totalScore: number = 0;
     let totalMatchCount: number = 0;
+    const urlsToPrint = new Map<number, string>();
 
     for (const match of sourceMatches)
     {
-        totalScore += match.score;
+        if (match.score > maxScore)
+        {
+            maxScore = match.score;
+        }
         totalMatchCount += match.numMatches;
     }
 
@@ -103,12 +112,7 @@ export async function comment(
         return;
     }
 
-    // FIXME if the post has two images, and only one of them is stolen, then
-    // the confidence score should be 100% for just that one image instead of
-    // 50% overall.
     console.log("Potential Stolen Content Detected!");
-    const avgScore = Math.round(totalScore / numUserImages);
-    console.debug(`Average score in "comment": ${avgScore}`);
     const sourceDiff = numUserImages - sourceMatches.length;
     console.debug(`Number of missing sources: ${sourceDiff}`);
 
@@ -157,7 +161,7 @@ export async function comment(
     // TODO add disclaimer about external links only if it's an external link
     // TODO remove the [1/1] if it's only 1 image
     const commentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
-        `I am **${avgScore}%** confident that this is a **stolen** image. ` +
+        `I am **${maxScore}%** confident that this is a **stolen** image. ` +
         `I found duplicate images on **${totalMatchCount}** other sites. ` +
         `Here is an example of what I found:\n\n `+
         `${str}\n---\n` +
@@ -167,7 +171,7 @@ export async function comment(
         `(https://www.reddit.com/message/compose/?to=picture-police&subject=Picture%20Police%20Feedback&message=Please%20describe%20the%20issue%20or%20feedback%20here:)`;
 
     const commentStrPlural = `🚨 **Picture Police** 🚨\n\n` +
-        `I am **${avgScore}%** confident that this post contains **stolen** ` +
+        `I am **${maxScore}%** confident that this post contains **stolen** ` +
         `images. I found duplicate images on **${totalMatchCount}** other ` +
         `sites. Here is an example of each image found on another site:\n\n `+
         `${str}\n---\n` +

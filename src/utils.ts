@@ -143,6 +143,7 @@ export async function comment(
     // });
 
     // build a string for pretty-printing the reddit comment
+    // TODO if any of the images are OC, then say "Image [n/n]: Likely original content"
     let str = "";
     urlsToPrint.forEach((url, idx) =>
     {

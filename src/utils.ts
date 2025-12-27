@@ -1,6 +1,8 @@
 import {RedditAPIClient} from "@devvit/public-api";
 import {Match} from "./Match.js";
 
+const REDDIT_RATE_LIMIT_DELAY_MS = 650; // 100 queries per minute + 50ms buffer
+
 /**
  * Extracts the original poster's username from a Reddit post URL.
  *
@@ -23,6 +25,7 @@ export async function getOpFromUrl(
     const postId = `t3_${match[1]}`;
     try
     {
+        await delay(REDDIT_RATE_LIMIT_DELAY_MS);
         const post = await reddit.getPostById(postId);
         return post.authorName;
     }
@@ -90,21 +93,24 @@ export async function comment(
     postId: string): Promise<void>
 {
     let maxScore: number = 0;
-    let totalScore: number = 0;
     let totalMatchCount: number = 0;
+    const ocImageIdx: number[] = [];
     const urlsToPrint = new Map<number, string>();
 
     for (const match of sourceMatches)
     {
+        if (match.score === 0 || match.numMatches === 0)
+        {
+            ocImageIdx.push(match.galleryIdx);
+        }
+
         if (match.score > maxScore)
         {
             maxScore = match.score;
         }
+
         totalMatchCount += match.numMatches;
     }
-
-    console.debug(`Total score in "comment": ${totalScore}`);
-    console.debug(`Total matches in "comment": ${totalMatchCount}`);
 
     if (totalMatchCount <= 0)
     {
@@ -113,26 +119,20 @@ export async function comment(
     }
 
     console.log("Potential Stolen Content Detected!");
-    const sourceDiff = numUserImages - sourceMatches.length;
-    console.debug(`Number of missing sources: ${sourceDiff}`);
 
     for (const match of sourceMatches)
     {
-        // there may be 3 submitted images, but only 1 of them matched a stolen
-        // image, so we create an offset to align the URL with the correct
-        // gallery image.
-        const adjustedGalleryIdx = match.galleryIdx + sourceDiff;
         for (const url of match.matches)
         {
             if (url.includes("reddit.com") || url.includes("redd.it"))
             {   // try to find and use the first reddit URL
-                urlsToPrint.set(adjustedGalleryIdx, url);
+                urlsToPrint.set(match.galleryIdx, url);
             }
         }
 
-        if (!urlsToPrint.has(adjustedGalleryIdx))
+        if (!urlsToPrint.has(match.galleryIdx))
         {   // if there were no reddit URLs, just use the first match
-            urlsToPrint.set(adjustedGalleryIdx, match.matches[0]);
+            urlsToPrint.set(match.galleryIdx, match.matches[0]);
         }
     }
 
@@ -146,25 +146,39 @@ export async function comment(
     let str = "";
     urlsToPrint.forEach((url, idx) =>
     {
-        if (!url) return;
-        str += `Image [${idx}/${numUserImages}]: `;
+        if (!url)
+        {
+            return;
+        }
+
+        if (numUserImages > 1)
+        {
+            str += `Image [${idx}/${numUserImages}]: `;
+        }
+
         if (url.includes("redd.it") || url.includes("reddit.com"))
         {
             str += `${url}\n\n`;
         }
         else
-        {
+        {   // "hide" external links by using the Markdown spoiler tag
             str += `>!${url}!<\n\n`;
         }
     });
 
-    // TODO add disclaimer about external links only if it's an external link
-    // TODO remove the [1/1] if it's only 1 image
+    let ocStr = ""
+
+    if (ocImageIdx.length > 0)
+    {
+        ocStr = `The following images are likely original content: (${ocImageIdx.join(", ")}).`;
+    }
+
     const commentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
         `I am **${maxScore}%** confident that this is a **stolen** image. ` +
         `I found duplicate images on **${totalMatchCount}** other sites. ` +
         `Here is an example of what I found:\n\n `+
-        `${str}\n---\n` +
+        `${str}` +
+        `${ocStr}\n\n---\n\n` +
         `Note: Click on links at your own risk. This bot does not guarantee ` +
         `the security of any external websites you visit.\n\n` +
         `[Click here to submit feedback]` +
@@ -174,7 +188,8 @@ export async function comment(
         `I am **${maxScore}%** confident that this post contains **stolen** ` +
         `images. I found duplicate images on **${totalMatchCount}** other ` +
         `sites. Here is an example of each image found on another site:\n\n `+
-        `${str}\n---\n` +
+        `${str}` +
+        `${ocStr}\n\n---\n\n` +
         `Note: Click on links at your own risk. This bot does not guarantee ` +
         `the security of any external websites you visit.\n\n` +
         `[Click here to submit feedback]` +
@@ -190,3 +205,5 @@ export async function comment(
 
     // TODO add an option to print a string on 100% confidence of original content (no matches)
 }
+
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

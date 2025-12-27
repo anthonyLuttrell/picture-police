@@ -1,3 +1,10 @@
+// TODO implement this interface
+interface VisionResult
+{
+    fullMatchingImages?: { url: string }[];
+    partialMatchingImages?: { url: string }[];
+    pagesWithMatchingImages?: { url: string; fullMatchingImages?: any[]; partialMatchingImages?: any[] }[];
+}
 
 export async function checkGoogleVision(imgUrl: string, apiKey: string)
 {

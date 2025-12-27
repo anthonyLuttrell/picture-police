@@ -77,7 +77,6 @@ Devvit.addTrigger({
         const opMatches = await reverseImageSearch(apiKey, userImgUrls);
         await findMatchingUsernames(context, authorName, opMatches);
         await comment(userImgUrls.length, opMatches, context, post.id);
-        opMatches.length = 0; // clear all instances
     },
 });
 

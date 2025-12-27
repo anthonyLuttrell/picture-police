@@ -15,22 +15,41 @@ export async function reverseImageSearch(
     key: string,
     sourceUrls: string[]): Promise<Match[]|[]>
 {
-    const sourceMatches: Match[] = [];
+    // const sourceMatches: Match[] = [];
+    //
+    // for (const sourceUrl of sourceUrls)
+    // {
+    //     console.debug(`Working image: ${sourceUrl}`);
+    //     const result = await checkGoogleVision(sourceUrl, key);
+    //
+    //     if (!result)
+    //     {
+    //         console.log("Bad result from Google Vision API.");
+    //         continue;
+    //     }
+    //
+    //     // create a new Match object for every picture in a post
+    //     // `pagesWithMatchingImages` may be undefined here, but that is okay
+    //     console.debug(`pagesWithMatchingImages exists: ${result.pagesWithMatchingImages !== undefined}`);
+    //     console.debug(`fullMatchingImages exists: ${result.fullMatchingImages !== undefined}`);
+    //     console.debug(`partialMatchingImages exists: ${result.partialMatchingImages !== undefined}`);
+    //     console.debug(`visuallySimilarImages exists: ${result.visuallySimilarImages !== undefined}`);
+    //     sourceMatches.push(
+    //         new Match(result.pagesWithMatchingImages, sourceMatches.length)
+    //     );
+    // }
+    // return sourceMatches;
 
-    for (const sourceUrl of sourceUrls)
+    const promises = sourceUrls.map(async (url, index) =>
     {
-        console.debug(`Working image: ${sourceUrl}`);
-        const result = await checkGoogleVision(sourceUrl, key);
+        const result = await checkGoogleVision(url, key);
+        if (!result) return null;
+        return new Match(result.pagesWithMatchingImages, index);
+    });
 
-        if (!result)
-        {
-            console.log("Bad result from Google Vision API.");
-            continue;
-        }
-
-        sourceMatches.push(new Match(result.pagesWithMatchingImages));
-    }
-    return sourceMatches;
+    const results = await Promise.all(promises);
+    // Filter out nulls
+    return results.filter((m): m is Match => m !== null);
 }
 
 /**
@@ -49,7 +68,6 @@ export async function findMatchingUsernames(
     authorName: string,
     sourceMatches: Match[]|[]): Promise<number>
 {
-    console.debug(`sourceMatches contains [${sourceMatches.length}] matches in "findMatchingUsernames".`);
     let totalRemoved = 0;
 
     for (const match of sourceMatches)
@@ -69,9 +87,7 @@ export async function findMatchingUsernames(
                     console.debug(
                         `Unable to find a username from the provided url:\n  ${url}`
                     );
-                    return Promise.reject(
-                        `Unable to find a username from the provided url:\n  ${url}`
-                    );
+                    continue;
                 }
 
                 if (authorName === foundAuthor)
@@ -83,7 +99,6 @@ export async function findMatchingUsernames(
             }
         }
         match.removeMatches(urlsToRemove);
-        // do we need to clear urlsToRemove here?
     }
     return totalRemoved;
 }

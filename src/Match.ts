@@ -1,19 +1,18 @@
 export class Match
 {
-    private static idx: number = 1; // this aligns with the gallery image
     private readonly matchingImagesObj: any;
     private matchList: string[] = [];
     private numCleanedMatches: number = 0;
+    private onlyPartialMatch: boolean = false;
     public readonly galleryIdx: number;
     public readonly numOriginalMatches: number = 0;
 
-    constructor(matchingImagesObj: any)
+    constructor(matchingImagesObj: any, index: number)
     {
-        this.galleryIdx = Match.idx++;
+        this.galleryIdx = index + 1; // 1-based to align with gallery images
         this.matchingImagesObj = matchingImagesObj === undefined ? [] : matchingImagesObj;
         this.setMatchList();
         this.numOriginalMatches = this.matchList.length;
-        console.debug(`Creating new instance at index ${this.galleryIdx}`);
     }
 
     /**
@@ -41,6 +40,11 @@ export class Match
      */
     setMatchList(): void
     {
+        // Some partial matches can be totally different images, so we want to
+        // ignore partial matches when full matches exist. We will keep a list
+        // of partial matches to add later if we don't find any full matches.
+        const tempPartialMatches: string[] = [];
+
         // FIXME there is an issue with the in-n-out picture not being id'd
         // correctly, it seems to be using the partial match first. And the
         // chocolate chip bread should be getting a match, but it is not.
@@ -48,14 +52,18 @@ export class Match
 
         for (const page of matchingPages)
         {
-            const hasFullMatch: boolean = page.fullMatchingImages &&
-                                          page.fullMatchingImages.length > 0;
-
-            const hasPartialMatch: boolean = page.partialMatchingImages &&
-                                             page.partialMatchingImages.length > 0;
+            const hasFullMatch = page.fullMatchingImages !== undefined;
+            const hasPartialMatch = page.partialMatchingImages !== undefined;
 
             // Reddit will create new URLs with the query string "?tls=" to
             // auto-translate a post to a different language. Don't add these.
+
+            // TODO use the URL object for parsing hostnames safely.
+            // try
+            // {
+            //     const urlObj = new URL(page.url);
+            //     const isReddit = urlObj.hostname.endsWith('reddit.com') || urlObj.hostname === 'redd.it';
+            // } catch (e) { /* invalid url */ }
             const goodRedditUrl: boolean = (page.url.includes("reddit.com") ||
                                            page.url.includes("redd.it") ||
                                            page.url.includes("/comments/")) &&
@@ -65,12 +73,23 @@ export class Match
             const isExternal: boolean = !page.url.includes("reddit.com") &&
                                         !page.url.includes("redd.it");
 
-            if ((hasFullMatch || hasPartialMatch) &&
-                (goodRedditUrl || isExternal))
+            if (hasFullMatch && (goodRedditUrl || isExternal))
             {
-                console.debug(`Adding url: ${page.url}`);
+                console.debug(`\nAdding url to matchList: ${page.url}\n  fullMatch: ${hasFullMatch}\n  partialMatch: ${hasPartialMatch}\n  goodRedditUrl: ${goodRedditUrl}\n  isExternal: ${isExternal}\n`);
                 this.matchList.push(page.url);
             }
+            else if (hasPartialMatch && (goodRedditUrl || isExternal))
+            {
+                console.debug(`saving partial match`);
+                tempPartialMatches.push(page.url);
+            }
+        }
+
+        if (this.matchList.length === 0 && tempPartialMatches.length > 0)
+        {   // There are no full matches, so we will use the partial matches
+            this.matchList = tempPartialMatches;
+            this.onlyPartialMatch = true;
+            console.debug("Caution: Only partial matches found!");
         }
     }
 
@@ -86,12 +105,10 @@ export class Match
 
     public removeMatches(urlsToRemove: string[])
     {
-        console.debug(`Removing ${urlsToRemove.length} matches.`);
         this.matchList = this.matchList.filter(
             url => !urlsToRemove.includes(url)
         );
         this.numCleanedMatches = this.matchList.length;
-        console.debug(`Remaining matches: ${this.numCleanedMatches}`);
     }
 
     /**
@@ -102,6 +119,16 @@ export class Match
     get score()
     {
         const matchDiff = this.numOriginalMatches - this.numCleanedMatches;
-        return Math.round(((1 - (matchDiff / this.numOriginalMatches)) * 100));
+        let score = Math.round(
+            ((1 - (matchDiff / this.numOriginalMatches)) * 100)
+        );
+
+        if (this.onlyPartialMatch)
+        {   // if we only found partial matches, we are less confident, so
+            // reduce the score
+            score /= 2;
+        }
+
+        return score;
     }
 }

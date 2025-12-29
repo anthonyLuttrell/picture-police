@@ -1,6 +1,7 @@
 import {Devvit, SettingScope} from "@devvit/public-api";
 import {comment, getGalleryUrls, getImgUrl} from "./utils.js";
 import {reverseImageSearch, findMatchingUsernames} from "./scan.js";
+import {validateApiKey, validateComment} from "./validation.js";
 
 Devvit.configure(
     {
@@ -19,7 +20,88 @@ Devvit.addSettings([
         isSecret: true,
         scope: SettingScope.App,
     },
-]);
+    {
+        type: 'string',
+        name: 'SUBREDDIT_API_KEY',
+        label: 'Subreddit-specific Google Vision API Key',
+        helpText: "Leave blank to use the master API key (rate limits will apply).",
+        scope: SettingScope.Installation,
+        onValidate: async ({value}) => {await validateApiKey(value)}
+    },
+    {
+        type: 'group',
+        label: 'Notification Settings',
+        helpText: "Set the default behavior for every submission.",
+        fields: [
+            {
+                type: "select",
+                name: "LEAVE_COMMENT",
+                label: "Leave a comment",
+                helpText: "Should the bot leave a comment on every single post, or only when it finds a match?",
+                options: [
+                    {
+                        label: "Always",
+                        value: "always"
+                    },
+                    {
+                        label: "Only on matches",
+                        value: "matches"
+                    }
+                ],
+                defaultValue: ["matches"],
+                onValidate: async ({value}, context) => {await validateComment(value, context)}
+            },
+            {
+                type: "boolean",
+                name: "DISTINGUISH",
+                label: "Distinguish comment",
+                defaultValue: true,
+                helpText: "Comments must be enabled first.",
+                onValidate: async ({value}, context) => {await validateComment(value, context)}
+            },
+            {
+                type: "boolean",
+                name: "STICKY",
+                label: "Sticky comment",
+                defaultValue: true,
+                helpText: "Comments must be enabled first.",
+                onValidate: async ({value}, context) => {await validateComment(value, context)}
+            },
+            {
+                type: "select",
+                multiSelect: true,
+                name: "MOD_NOTICE",
+                label: "Method to notify the mods",
+                options: [
+                    {
+                        label: "Modmail",
+                        value: "mail"
+                    },
+                    {
+                        label: "Report",
+                        value: "report"
+                    }
+                ]
+            },
+            {
+                type: "select",
+                multiSelect: true,
+                name: "ACTION",
+                label: "Additional Action(s) to take on a positive match",
+                options: [
+                    {
+                        label: "Remove post",
+                        value: "remove"
+                    },
+                    {
+                        label: "Ban user",
+                        value: "ban"
+                    }
+                ]
+            }
+        ]
+    }
+])
 
 Devvit.addTrigger({
     event: 'PostCreate',

@@ -199,10 +199,12 @@ export async function comment(
     const commentStr = numUserImages === 1 ?
         commentStrSingular : commentStrPlural;
 
-    await context.reddit.submitComment({
+    const comment = await context.reddit.submitComment({
         id: postId,
         text: commentStr
     });
+
+    await comment.distinguish(true);
 
     // TODO add an option to print a string on 100% confidence of original content (no matches)
 }

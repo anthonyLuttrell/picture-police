@@ -1,23 +1,11 @@
 import {checkGoogleVision} from "./gvis.js";
 
-export async function validateComment(value: any, context: any)
-{
-    console.debug(`Selected: ${value}`);
-    const comment = await context.settings.get("LEAVE_COMMENT");
-    console.debug(`comment value: ${comment}`);
-    if (value === "true" && comment === "")
-    {
-        return "You must also enable a comment option.";
-    }
-    return undefined;
-}
-
 export async function validateApiKey(value: string|undefined)
 {
-    // TODO this is not working
     if (value === "")
     {
-        return undefined
+        console.debug("Empty API key");
+        return "No API key provided.";
     }
 
     const result = await checkGoogleVision(

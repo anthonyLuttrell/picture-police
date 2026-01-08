@@ -92,6 +92,12 @@ export async function comment(
     context: any,
     postId: string): Promise<void>
 {
+    const settings = await context.settings.getAll();
+    if (settings["LEAVE_COMMENT"]?.[0] === "never")
+    {
+        return;
+    }
+
     let maxScore: number = 0;
     let totalMatchCount: number = 0;
     const ocImageIdx: number[] = [];
@@ -112,13 +118,11 @@ export async function comment(
         totalMatchCount += match.numMatches;
     }
 
-    if (totalMatchCount <= 0)
+    if (totalMatchCount <= 0 && settings["LEAVE_COMMENT"]?.[0] === "matches")
     {
         console.log("No matches found. Likely original content.");
         return;
     }
-
-    console.log("Potential Stolen Content Detected!");
 
     for (const match of sourceMatches)
     {
@@ -136,11 +140,28 @@ export async function comment(
         }
     }
 
-    // Option A: Report to Mods
-    // FIXME not working
-    // await context.reddit.report(post.id, {
-    //     reason: `Potential Stolen Content (${score}% match confidence)`
-    // });
+    console.debug(`report setting: ${settings["REPORT"]}`);
+    if (settings["REPORT"])
+    {   // TODO this needs to be moved out into its own function because we won't reach this if comments are not enabled
+        // FIXME this is not working
+        await context.reddit.report(postId, {
+            reason: `Potential Stolen Content (${maxScore}% match confidence)`
+        });
+    }
+
+    console.debug(`remove setting: ${settings["REMOVE"]}`);
+    console.debug(`mod mail setting: ${settings["MOD_MAIL"]}`);
+
+    if (settings["MOD_MAIL"])
+    {
+        await context.reddit.modMail.createModNotification({
+            subject: "Picture Police Report",
+            bodyMarkdown: "Markdown text can go here",
+            subredditId: context.subredditId
+        })
+    }
+
+    // TODO context.reddit.user.getSocialLinks() to compare user name to social links or found websites
 
     // build a string for pretty-printing the reddit comment
     // TODO if any of the images are OC, then say "Image [n/n]: Likely original content"
@@ -204,7 +225,10 @@ export async function comment(
         text: commentStr
     });
 
-    await comment.distinguish(true);
+    if (settings["DISTINGUISH"])
+    {
+        await comment.distinguish(settings["STICKY"]);
+    }
 
     // TODO add an option to print a string on 100% confidence of original content (no matches)
 }

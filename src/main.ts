@@ -1,7 +1,7 @@
 import {Devvit, SettingScope} from "@devvit/public-api";
 import {comment, getGalleryUrls, getImgUrl} from "./utils.js";
 import {reverseImageSearch, findMatchingUsernames} from "./scan.js";
-import {validateApiKey, validateComment} from "./validation.js";
+import {validateApiKey} from "./validation.js";
 
 Devvit.configure(
     {
@@ -20,14 +20,15 @@ Devvit.addSettings([
         isSecret: true,
         scope: SettingScope.App,
     },
-    {
-        type: 'string',
-        name: 'SUBREDDIT_API_KEY',
-        label: 'Subreddit-specific Google Vision API Key',
-        helpText: "Leave blank to use the master API key (rate limits will apply).",
-        scope: SettingScope.Installation,
-        onValidate: async ({value}) => {await validateApiKey(value)}
-    },
+    // TODO allow subreddit-specific API keys
+    // {
+    //     type: 'string',
+    //     name: 'SUBREDDIT_API_KEY',
+    //     label: 'Subreddit-specific Google Vision API Key',
+    //     helpText: "Leave blank to use the master API key (rate limits will apply).",
+    //     scope: SettingScope.Installation,
+    //     onValidate: async ({value}) => {await validateApiKey(value)}
+    // },
     {
         type: 'group',
         label: 'Notification Settings',
@@ -37,8 +38,13 @@ Devvit.addSettings([
                 type: "select",
                 name: "LEAVE_COMMENT",
                 label: "Leave a comment",
-                helpText: "Should the bot leave a comment on every single post, or only when it finds a match?",
+                helpText: "When should the bot leave a comment on the submission?",
+                defaultValue: ["never"],
                 options: [
+                    {
+                        label: "Never",
+                        value: "never"
+                    },
                     {
                         label: "Always",
                         value: "always"
@@ -47,57 +53,42 @@ Devvit.addSettings([
                         label: "Only on matches",
                         value: "matches"
                     }
-                ],
-                defaultValue: ["matches"],
-                onValidate: async ({value}, context) => {await validateComment(value, context)}
+                ]
             },
             {
                 type: "boolean",
                 name: "DISTINGUISH",
                 label: "Distinguish comment",
                 defaultValue: true,
-                helpText: "Comments must be enabled first.",
-                onValidate: async ({value}, context) => {await validateComment(value, context)}
+                helpText: "If comments are enabled, should the bot add the mod label to its comment?",
             },
             {
                 type: "boolean",
                 name: "STICKY",
                 label: "Sticky comment",
                 defaultValue: true,
-                helpText: "Comments must be enabled first.",
-                onValidate: async ({value}, context) => {await validateComment(value, context)}
+                helpText: "If comments are enabled, should the bot sticky its comment to the top of the thread?",
             },
             {
-                type: "select",
-                multiSelect: true,
-                name: "MOD_NOTICE",
-                label: "Method to notify the mods",
-                options: [
-                    {
-                        label: "Modmail",
-                        value: "mail"
-                    },
-                    {
-                        label: "Report",
-                        value: "report"
-                    }
-                ]
+                type: "boolean",
+                name: "MOD_MAIL",
+                label: "Send mod mail",
+                defaultValue: false,
+                helpText: "Should the bot send a mod mail when a positive match is found?",
             },
             {
-                type: "select",
-                multiSelect: true,
-                name: "ACTION",
-                label: "Additional Action(s) to take on a positive match",
-                options: [
-                    {
-                        label: "Remove post",
-                        value: "remove"
-                    },
-                    {
-                        label: "Ban user",
-                        value: "ban"
-                    }
-                ]
+                type: "boolean",
+                name: "REPORT",
+                label: "Report submission",
+                defaultValue: false,
+                helpText: "Should the bot add an entry to the mod queue when a positive match is found?",
+            },
+            {
+                type: "boolean",
+                name: "REMOVE",
+                label: "Remove submission",
+                defaultValue: false,
+                helpText: "Should the bot remove the submission when a positive match is found? Note: enable both Report and Remove to mimic the automod's \"filter\" action.",
             }
         ]
     }

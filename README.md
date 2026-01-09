@@ -45,14 +45,22 @@ Once the app is installed on your subreddit, navigate to your **Mod Tools > Apps
 * **Language:** TypeScript
 * **Platform:** Devvit (Reddit Developer Platform)
 * **Rate Limiting:** Includes a built-in 650ms delay between Reddit API calls to ensure stability.
-* **Open Source:** The project is open-source, licensed under the MIT License. Contributions are welcome!
+* **Open Source:** The project is [open-source](https://github.com/anthonyLuttrell/picture-police.git), licensed under the Apache 2.0 License. Contributions are welcome!
+
+## Coming Soon
+
+* **Custom Google Cloud Vision API Key:** Allow moderators to provide their own API key.
+* **Keyword Hooks:** Allow moderators to specify keywords ("OC", "I Ate", "I Made", etc.) that must appear in the title or body to activate the bot.
+* **Social Link Comparison:** Compare the author's social links on their profile to those found on any external matches to better eliminate false-positives.
 
 > [!IMPORTANT]
-> This bot requires the `http` permission to communicate with `vision.googleapis.com` and the `redditAPI` permission to manage posts.
+> This bot currently uses my personal Google Cloud Vision API key for all requests. Because of this, rate limits may apply.
+> 
+> Please consider [donating](https://www.paypal.com/donate/?hosted_button_id=ML5CBAPTWNR5A) to cover API costs. Any rate limits applied will be adjusted upon donation.
 
 ---
 
-## 📜 Changelog
+## Changelog
 
 ### Version 1.0.0
 * Initial release.

@@ -1,222 +1,184 @@
 import {Devvit, SettingScope} from "@devvit/public-api";
+import {comment, getGalleryUrls, getImgUrl, getTotalMatchCount, getMaxScore, sendModMail, reportPost, removePost, log} from "./utils.js";
+import {reverseImageSearch, findMatchingUsernames} from "./scan.js";
+// import {validateApiKey} from "./validation.js";
 
 Devvit.configure(
     {
         redditAPI: true,
-        http: true,
+        http: {
+            enabled: true,
+            domains: ["reddit.com", "redd.it"]
+        },
     });
 
 Devvit.addSettings([
     {
         type: 'string',
-        name: 'GOOGLE_VISION_KEY', // <-- MUST match the CLI key exactly
+        name: 'GOOGLE_VISION_KEY',
         label: 'Google Vision API Key',
         isSecret: true,
-        scope: SettingScope.App, // <-- Crucial for CLI access
+        scope: SettingScope.App,
     },
-]);
-
-async function checkGoogleVision(imgUrl: string, apiKey: string)
-{
-    const apiUrl = `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`;
-
-    const body =
-        {
-            requests: [
-                {
-                    image: {source: {imageUri: imgUrl}},
-                    features: [{type: 'WEB_DETECTION', maxResults: 20}]
-                }
-            ]
-        };
-
-    try
+    // TODO allow subreddit-specific API keys
+    // {
+    //     type: 'string',
+    //     name: 'SUBREDDIT_API_KEY',
+    //     label: 'Subreddit-specific Google Vision API Key',
+    //     helpText: "Leave blank to use the master API key (rate limits will apply).",
+    //     scope: SettingScope.Installation,
+    //     onValidate: async ({value}) => {await validateApiKey(value)}
+    // },
     {
-        const response = await fetch(apiUrl,
+        type: 'group',
+        label: 'Notification Settings',
+        helpText: "Set the default behavior for every submission.",
+        fields: [
             {
-                method: 'POST',
-                body: JSON.stringify(body),
-                headers: {'Content-Type': 'application/json'}
-            });
-
-        const data = await response.json();
-        return data.responses[0].webDetection;
-    } catch (e)
-    {
-        console.error("Google API Error:", e);
-        return null;
+                type: "select",
+                name: "LEAVE_COMMENT",
+                label: "Leave a comment",
+                helpText: "When should the bot leave a comment on the submission?",
+                defaultValue: ["never"],
+                options: [
+                    {
+                        label: "Never",
+                        value: "never"
+                    },
+                    {
+                        label: "Always",
+                        value: "always"
+                    },
+                    {
+                        label: "Only on matches",
+                        value: "matches"
+                    }
+                ]
+            },
+            {
+                type: "boolean",
+                name: "DISTINGUISH",
+                label: "Distinguish comment",
+                defaultValue: true,
+                helpText: "If comments are enabled, should the bot add the mod label to its comment?",
+            },
+            {
+                type: "boolean",
+                name: "STICKY",
+                label: "Sticky comment",
+                defaultValue: true,
+                helpText: "If comments are enabled, should the bot sticky its comment to the top of the thread?",
+            },
+            {
+                type: "boolean",
+                name: "MOD_MAIL",
+                label: "Send mod mail",
+                defaultValue: true,
+                helpText: "Should the bot send a mod mail when a positive match is found?",
+            },
+            {
+                type: "boolean",
+                name: "REPORT",
+                label: "Report submission",
+                defaultValue: false,
+                helpText: "Should the bot add an entry to the mod queue when a positive match is found?",
+            },
+            {
+                type: "boolean",
+                name: "REMOVE",
+                label: "Remove submission",
+                defaultValue: false,
+                helpText: "Should the bot remove the submission when a positive match is found? Note: enable both Report and Remove to mimic the automod's \"filter\" action.",
+            }
+        ]
     }
-}
+])
 
 Devvit.addTrigger({
-    event: 'PostCreate',
+    event: "PostCreate",
     onEvent: async (event, context) =>
     {
         const post = event.post;
-        const imgUrls = [];
+        const author = event.author;
 
-        if (post === undefined) return console.error("Bad Post!");
-
-        if (post.isGallery)
+        if (post === undefined)
         {
-            for (const url of post.galleryImages)
-            {
-                if (url.match(/\.(jpeg|jpg|png)$/i))
-                {
-                    console.debug(`Adding gallery URL: ${url}`);
-                    imgUrls.push(url);
-                }
-            }
-        } else if (post.url.match(/\.(jpeg|jpg|png)$/i))
-        {
-            console.debug(`Adding single URL: ${post.url}`);
-            imgUrls.push(post.url);
-        } else
-        {
-            console.debug("No image found in post.");
+            log("ERROR", "Unable to get post data.", "N/A");
             return;
         }
 
-        console.debug("Getting API Key...");
+        if (author === undefined)
+        {
+            log("ERROR", "Unable to get author data.", post.permalink);
+            return;
+        }
+
+        let userImgUrls: string[] | [] = [];
+        const authorName: string = author.name;
+        log("LOG", "Processing new post", post.permalink);
+
+        if (post.isImage)
+        {
+            userImgUrls = getImgUrl(post);
+        }
+        else if (post.isGallery)
+        {
+            userImgUrls = getGalleryUrls(post);
+        }
+        else
+        {   // TODO check for www.imgur.com links in post body?
+            log("WARN", "Post type not supported.", post.permalink);
+        }
+
+        if (userImgUrls.length <= 0)
+        {
+            log("ERROR", "No images found in image post.", post.permalink);
+            return;
+        }
+
         const apiKey = await context.settings.get('GOOGLE_VISION_KEY');
         if (!apiKey)
         {
-            console.error("API Key not set!");
+            log("ERROR", "API Key not set!", post.permalink);
             return;
         }
 
         if (typeof apiKey !== 'string')
         {
-            console.error("API Key must be a string");
+            log("ERROR", "Invalid API Key!", post.permalink);
             return;
         }
 
-        console.debug(`Checking image(s) for post: ${post.title}`);
-        let totalScore = 0;
-        let totalMatchCount = 0;
-        const matchUrls = [];
+        const opMatches = await reverseImageSearch(apiKey, userImgUrls);
+        await findMatchingUsernames(context, authorName, opMatches);
+        const totalMatchCount = getTotalMatchCount(opMatches);
+        const maxScore = getMaxScore(opMatches);
 
-        for (const url of imgUrls)
+        const matchCount = await comment(
+            userImgUrls.length,
+            totalMatchCount,
+            opMatches,
+            maxScore,
+            context,
+            post.id
+        );
+
+        await sendModMail(
+            context,
+            authorName,
+            post.title,
+            post.permalink,
+            matchCount
+        );
+
+        await reportPost(context, post.id, matchCount);
+        await removePost(context, post.id, matchCount);
+
+        if (maxScore <= 0)
         {
-            console.debug(`Working image: ${url}`);
-            const result = await checkGoogleVision(url, apiKey);
-
-            if (!result || !result.pagesWithMatchingImages)
-            {
-                console.debug("No matches found. Original content?");
-                continue;
-            }
-
-            const matchCount = result.fullMatchingImages.length;
-            totalMatchCount += matchCount;
-
-            const externalMatches = result.fullMatchingImages.filter((page: any) =>
-                !page.url.includes("reddit.com") && !page.url.includes("redd.it")
-            );
-
-            const redditMatches = result.fullMatchingImages.filter((page: any) =>
-                page.url.includes("reddit.com") && page.url.includes("redd.it")
-            );
-
-            for (const match of redditMatches)
-            {
-                const submissionId = getSubmissionId(match, context);
-            }
-
-            for (const page of result.fullMatchingImages)
-            {   // debug only
-                console.log(`full match: ${page.url}`);
-            }
-
-            for (const page of externalMatches)
-            {   // debug only
-                console.log(`external match: ${page.url}`);
-            }
-
-            let score = 0;
-
-            // Simple Scoring Logic
-            if (matchCount > 10) score = 99;      // Viral / Everywhere
-            else if (matchCount > 3) score = 75;  // Likely copied
-            else if (matchCount > 0) score = 30;  // Low confidence - ask OP to prove this is their OC image
-
-            totalScore += score;
-            console.log(`Score: ${score}% | Matches: ${matchCount}`);
-
-            // Action: Report or Comment if score is high
-            if (score >= 70)
-            {
-                console.log("Potential Stolen Content Detected!");
-                matchUrls.push(result.fullMatchingImages[0].url);
-            } else
-            {
-                console.log("No stolen content detected.");
-            }
+            log("LOG", "Post appears to be OC.", post.permalink);
         }
-
-        if (matchUrls.length <= 0)
-        {
-            return;
-        }
-
-        // Option A: Report to Mods
-        // FIXME not working
-        // await context.reddit.report(post.id, {
-        //     reason: `Potential Stolen Content (${score}% match confidence)`
-        // });
-
-        let urlStr = "";
-        for (let i = 1; i <= matchUrls.length; i++)
-        {
-            urlStr += `Image ${i}: ${matchUrls[i - 1]}\n\n`;
-        }
-
-        // remove the last two newlines
-        urlStr = urlStr.slice(0, -2);
-        const avgScore = totalScore / matchUrls.length;
-
-        await context.reddit.submitComment({
-            id: post.id,
-            text: `🚨 **Picture Police** 🚨\n\nI am **${Math.round(avgScore)}%** confident that this post contains **stolen** images. I found duplicate images on **${totalMatchCount}** other sites. Here is an example of each image found on another site:\n\n${urlStr}`
-        });
-        // TODO add an option to print a string on 100% confidence of original content (no matches)
-    },
+    }
 });
-
-async function getSubmissionId(mediaUrl: string, context: Devvit.Context): Promise<string | null>
-{
-    const cleanedUrl = mediaUrl
-        .replace("preview.redd.it", "i.redd.it")
-        .split('?')[0];
-
-    const infoUrl = `https://www.reddit.com/api/info.json?url=${encodeURIComponent(cleanedUrl)}`;
-
-    try
-    {
-        // Use the native Devvit fetch, which is already configured for Reddit
-        // TODO need to fetch submission ID
-        const response = await context.http.fetch(infoUrl);
-        const data = await response.json();
-
-        // 3. Extract the Submission ID from the JSON response
-        if (data.data && data.data.children && data.data.children.length > 0)
-        {
-            // The post data will be the first item in the 'children' array
-            const postData = data.data.children[0].data;
-
-            // postData.id is the short 6-character submission ID (e.g., "a1b2c3")
-            const submissionId = postData.id;
-
-            console.log(`Successfully extracted Submission ID: ${submissionId}`);
-            return submissionId;
-        }
-    }
-    catch (error)
-    {
-        console.error("Error fetching submission info from API:", error);
-    }
-
-    return null;
-}
 
 export default Devvit;

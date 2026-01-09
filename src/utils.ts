@@ -2,16 +2,12 @@ import {RedditAPIClient} from "@devvit/public-api";
 import {Match} from "./Match.js";
 
 const REDDIT_RATE_LIMIT_DELAY_MS = 650; // 100 queries per minute + 50ms buffer
+const MAIL_LINK = "[Click here to submit feedback](https://www.reddit.com/message/compose/?to=picture-police&subject=Picture%20Police%20Feedback&message=Please%20describe%20the%20issue%20or%20feedback%20here:)";
+const DISCLAIMER = `**Note:** Click on external links at your own risk. This `+
+    `bot does not guarantee the security of any external websites you visit.`;
 
-/**
- * Extracts the original poster's username from a Reddit post URL.
- *
- * @param {string} url - The URL of the Reddit post.
- * @param {RedditAPIClient} reddit - An instance of the Reddit API client to
- * fetch post data.
- * @return {Promise<string | undefined>} A promise that resolves to the username
- * of the post's author, or `undefined` if the extraction or retrieval fails.
- */
+// TODO context.reddit.user.getSocialLinks() to compare user name to social links or found websites
+
 export async function getOpFromUrl(
     url: string,
     reddit: RedditAPIClient): Promise<string | undefined>
@@ -35,93 +31,67 @@ export async function getOpFromUrl(
     }
 }
 
-/**
- * Extracts the image URL from the given post if it matches specific image file
- * extensions.
- *
- * @param {any} post - The object representing the post, expected to have a
- * `url` property.
- * @return {string[]|[]} An array containing the image URL if it has a valid
- * extension (jpeg, jpg, png), or an empty array otherwise.
- */
 export function getImgUrl(post: any): string[] | []
 {
     return post.url.match(/\.(jpeg|jpg|png)$/i) ? [post.url] : [];
 }
 
-/**
- * Extracts and returns an array of valid image URLs from the gallery images
- * of a provided post object. Filters URLs to include only those ending with
- * .jpeg, .jpg, or .png extensions.
- *
- * @param {object} post - The post object containing a `galleryImages` property
- * with an array of image URLs.
- * @return {string[] | []} An array of valid image URLs or an empty array if
- * none are found.
- */
 export function getGalleryUrls(post: any): string[] | []
 {
     const urlList = post.galleryImages.filter(
         (url: string) => url.match(/\.(jpeg|jpg|png)$/i)
     );
 
-    for (const [idx, url] of urlList.entries())
-    {
-        console.debug(`posted gallery image [${idx + 1}/${urlList.length}]: ${url}`);
-    }
+    // for (const [idx, url] of urlList.entries())
+    // {
+    //     console.debug(`posted gallery image [${idx + 1}/${urlList.length}]: ${url}`);
+    // }
 
     return urlList.length > 0 ? urlList : [];
 }
 
-/**
- * Analyzes the provided post using its score and matches against external
- * sources to detect potential stolen content. If stolen content is detected, a
- * message is submitted as a comment on the post with relevant details.
- *
- * @param numUserImages
- * @param sourceMatches
- * @param context
- * @param {string} postId - The unique identifier of the respective Reddit post.
- *
- * @return {Promise<void>} Returns a promise that resolves once the comment is
- * submitted, or no action is taken if no stolen content is detected.
- */
-export async function comment(
-    numUserImages: number,
-    sourceMatches: Match[]|[],
-    context: any,
-    postId: string): Promise<void>
+export function getTotalMatchCount(sourceMatches: Match[]|[],)
 {
-    const settings = await context.settings.getAll();
-    if (settings["LEAVE_COMMENT"]?.[0] === "never")
-    {
-        return;
-    }
-
-    let maxScore: number = 0;
     let totalMatchCount: number = 0;
-    const ocImageIdx: number[] = [];
-    const urlsToPrint = new Map<number, string>();
 
     for (const match of sourceMatches)
     {
-        if (match.score === 0 || match.numMatches === 0)
-        {
-            ocImageIdx.push(match.galleryIdx);
-        }
+        totalMatchCount += match.numMatches;
+    }
 
+    return totalMatchCount;
+}
+
+export function getMaxScore(sourceMatches: Match[] | [],)
+{
+    let maxScore: number = 0;
+
+    for (const match of sourceMatches)
+    {
         if (match.score > maxScore)
         {
             maxScore = match.score;
         }
-
-        totalMatchCount += match.numMatches;
     }
 
-    if (totalMatchCount <= 0 && settings["LEAVE_COMMENT"]?.[0] === "matches")
+    return maxScore;
+}
+
+export async function comment(
+    numUserImages: number,
+    totalMatchCount: number,
+    sourceMatches: Match[]|[],
+    maxScore: number,
+    context: any,
+    postId: string): Promise<number>
+{
+    const settings = await context.settings.getAll();
+    const urlsToPrint = new Map<number, string>();
+
+    if ((totalMatchCount <= 0 && settings["LEAVE_COMMENT"]?.[0] === "matches")||
+        settings["LEAVE_COMMENT"]?.[0] === "never")
     {
-        console.log("No matches found. Likely original content.");
-        return;
+        return totalMatchCount;
     }
 
     for (const match of sourceMatches)
@@ -140,32 +110,9 @@ export async function comment(
         }
     }
 
-    console.debug(`report setting: ${settings["REPORT"]}`);
-    if (settings["REPORT"])
-    {   // TODO this needs to be moved out into its own function because we won't reach this if comments are not enabled
-        // FIXME this is not working
-        await context.reddit.report(postId, {
-            reason: `Potential Stolen Content (${maxScore}% match confidence)`
-        });
-    }
-
-    console.debug(`remove setting: ${settings["REMOVE"]}`);
-    console.debug(`mod mail setting: ${settings["MOD_MAIL"]}`);
-
-    if (settings["MOD_MAIL"])
-    {
-        await context.reddit.modMail.createModNotification({
-            subject: "Picture Police Report",
-            bodyMarkdown: "Markdown text can go here",
-            subredditId: context.subredditId
-        })
-    }
-
-    // TODO context.reddit.user.getSocialLinks() to compare user name to social links or found websites
-
     // build a string for pretty-printing the reddit comment
-    // TODO if any of the images are OC, then say "Image [n/n]: Likely original content"
-    let str = "";
+    let urlStr = "";
+    let hasExternalLinks = false;
     urlsToPrint.forEach((url, idx) =>
     {
         if (!url)
@@ -175,50 +122,66 @@ export async function comment(
 
         if (numUserImages > 1)
         {
-            str += `Image [${idx}/${numUserImages}]: `;
+            urlStr += `Image [${idx}/${numUserImages}]: `;
         }
 
         if (url.includes("redd.it") || url.includes("reddit.com"))
         {
-            str += `${url}\n\n`;
+            urlStr += `${url}\n\n`;
         }
         else
         {   // "hide" external links by using the Markdown spoiler tag
-            str += `>!${url}!<\n\n`;
+            urlStr += `>!${url}!<\n\n`;
+            hasExternalLinks = true;
         }
     });
 
-    let ocStr = ""
+    const ocCommentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
+        `This image appears to be original content. I could not find any `+
+        `matching images anywhere on the web.\n\n---\n\n${MAIL_LINK}`;
 
-    if (ocImageIdx.length > 0)
-    {
-        ocStr = `The following images are likely original content: (${ocImageIdx.join(", ")}).`;
-    }
+    const ocCommentStrPlural = `🚨 **Picture Police** 🚨\n\n` +
+        `These images appear to be original content. I could not find any `+
+        `matching images anywhere on the web.\n\n---\n\n${MAIL_LINK}`;
 
-    const commentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
+    const stolenCommentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
         `I am **${maxScore}%** confident that this is a **stolen** image. ` +
         `I found duplicate images on **${totalMatchCount}** other sites. ` +
         `Here is an example of what I found:\n\n `+
-        `${str}` +
-        `${ocStr}\n\n---\n\n` +
-        `Note: Click on links at your own risk. This bot does not guarantee ` +
-        `the security of any external websites you visit.\n\n` +
-        `[Click here to submit feedback]` +
-        `(https://www.reddit.com/message/compose/?to=picture-police&subject=Picture%20Police%20Feedback&message=Please%20describe%20the%20issue%20or%20feedback%20here:)`;
+        `${urlStr}${DISCLAIMER}\n\n---\n\n${MAIL_LINK}`;
 
-    const commentStrPlural = `🚨 **Picture Police** 🚨\n\n` +
+    const stolenCommentStrPlural = `🚨 **Picture Police** 🚨\n\n` +
         `I am **${maxScore}%** confident that this post contains **stolen** ` +
         `images. I found duplicate images on **${totalMatchCount}** other ` +
         `sites. Here is an example of each image found on another site:\n\n `+
-        `${str}` +
-        `${ocStr}\n\n---\n\n` +
-        `Note: Click on links at your own risk. This bot does not guarantee ` +
-        `the security of any external websites you visit.\n\n` +
-        `[Click here to submit feedback]` +
-        `(https://www.reddit.com/message/compose/?to=picture-police&subject=Picture%Police%20Feedback&message=Please%20describe%20the%20issue%20or%20feedback%20here:)`;
+        `${urlStr}${DISCLAIMER}\n\n---\n\n${MAIL_LINK}`;
 
-    const commentStr = numUserImages === 1 ?
-        commentStrSingular : commentStrPlural;
+    const isOc = maxScore <= 0;
+    const isSingular = numUserImages === 1;
+    const isPlural = numUserImages > 1;
+    let commentStr = "";
+
+    if (isOc && isSingular)
+    {
+        commentStr = ocCommentStrSingular;
+    }
+    else if (isOc && isPlural)
+    {
+        commentStr = ocCommentStrPlural;
+    }
+    else if (!isOc && isSingular)
+    {
+        commentStr = stolenCommentStrSingular;
+    }
+    else if (!isOc && isPlural)
+    {
+        commentStr = stolenCommentStrPlural;
+    }
+
+    if (!hasExternalLinks)
+    {   // FIXME this isn't working
+        commentStr.replace((DISCLAIMER + "\n\n"), "");
+    }
 
     const comment = await context.reddit.submitComment({
         id: postId,
@@ -230,7 +193,85 @@ export async function comment(
         await comment.distinguish(settings["STICKY"]);
     }
 
-    // TODO add an option to print a string on 100% confidence of original content (no matches)
+    return totalMatchCount;
+}
+
+export async function sendModMail(
+    context: any,
+    authorName: string,
+    title: string,
+    url: string,
+    numMatches: number)
+{
+    const sendModMail: boolean = await context.settings.get("MOD_MAIL");
+    if (sendModMail && numMatches > 0)
+    {
+        const msg = `######The following post has been removed due to potential stolen content:\n\n`+
+            `**Post Link:** ${url}\n\n`+
+            `**Author:** u/${authorName}\n\n`+
+            `**Title:** ${title}\n\n`+
+            `**Matches:** ${numMatches}`;
+
+        await context.reddit.modMail.createModNotification({
+            subject: "🚨 Picture Police Report 🚨",
+            bodyMarkdown: msg,
+            subredditId: context.subredditId
+        })
+    }
+}
+
+export async function reportPost(context: any, postId: string, numMatches: number)
+{
+    const sendReport: boolean = await context.settings.get("REPORT");
+    if (sendReport && numMatches > 0)
+    {
+        let matchStr = "match";
+        matchStr += numMatches > 1 ? "es" : "";
+        await context.reddit.report({id: postId}, {
+            reason: `Potential Stolen Content, ${numMatches} ${matchStr} found`
+        });
+        log("DEBUG", "Reported post", postId);
+    }
+}
+
+export async function removePost(context: any, postId: string, numMatches: number)
+{
+    const removePost: boolean = await context.settings.get("REMOVE");
+    if (removePost && numMatches > 0)
+    {
+        await context.reddit.remove(postId, false);
+        log("LOG", "Removed post", postId);
+    }
+}
+
+export function log(level: string, message: string, permalink: string)
+{
+    const timestamp = new Date().toISOString();
+    const MAX_LOG_LEN = 30;
+
+    const colors = {
+        RESET: "\x1b[0m",
+        RED: "\x1b[31m",
+        YELLOW: "\x1b[33m",
+        BLUE: "\x1b[34m",
+        WHITE: "\x1b[37m"
+    };
+
+    let colorCode = colors.WHITE;
+    const upperLevel = level.toUpperCase();
+    const paddedLevel = upperLevel.padEnd(5);
+
+    if (upperLevel === "ERROR") colorCode = colors.RED;
+    else if (upperLevel === "WARN") colorCode = colors.YELLOW;
+    else if (upperLevel === "DEBUG") colorCode = colors.BLUE;
+
+    const paddedMsg = message.length > MAX_LOG_LEN
+        ? message.substring(0, (MAX_LOG_LEN - 3)) + "..."
+        : message.padEnd(MAX_LOG_LEN);
+
+    const coloredLevel = `${colorCode}${paddedLevel}${colors.RESET}`;
+
+    console.log(`${timestamp} | ${coloredLevel} | ${paddedMsg} | ${permalink}`);
 }
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

@@ -1,3 +1,5 @@
+import { log } from "./utils.js";
+
 export class Match
 {
     private readonly matchingImagesObj: any;
@@ -69,17 +71,16 @@ export class Match
 
                 if (hasFullMatch && (isRedditPermalink || isExternal))
                 {
-                    console.debug(`\nAdding url to matchList: ${page.url}\n  fullMatch: ${hasFullMatch}\n  partialMatch: ${hasPartialMatch}\n  goodRedditUrl: ${isRedditPermalink}\n  isExternal: ${isExternal}\n`);
                     this.matchList.push(page.url);
                 }
                 else if (hasPartialMatch && (isRedditPermalink || isExternal))
                 {
-                    console.debug(`saving partial match`);
                     tempPartialMatches.push(page.url);
                 }
             }
             catch (e)
             {
+                log("ERROR", "Caught error when creating Match object", "N/A")
                 console.error(e);
             }
         }
@@ -88,7 +89,7 @@ export class Match
         {   // There are no full matches, so we will use the partial matches
             this.matchList = tempPartialMatches;
             this.onlyPartialMatch = true;
-            console.debug("Caution: Only partial matches found!");
+            log("DEBUG", "Only partial matches found!", "N/A");
         }
     }
 

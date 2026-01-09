@@ -1,7 +1,7 @@
 import {Devvit, SettingScope} from "@devvit/public-api";
-import {comment, getGalleryUrls, getImgUrl} from "./utils.js";
+import {comment, getGalleryUrls, getImgUrl, getTotalMatchCount, getMaxScore, sendModMail, reportPost, removePost, log} from "./utils.js";
 import {reverseImageSearch, findMatchingUsernames} from "./scan.js";
-import {validateApiKey} from "./validation.js";
+// import {validateApiKey} from "./validation.js";
 
 Devvit.configure(
     {
@@ -73,7 +73,7 @@ Devvit.addSettings([
                 type: "boolean",
                 name: "MOD_MAIL",
                 label: "Send mod mail",
-                defaultValue: false,
+                defaultValue: true,
                 helpText: "Should the bot send a mod mail when a positive match is found?",
             },
             {
@@ -95,7 +95,7 @@ Devvit.addSettings([
 ])
 
 Devvit.addTrigger({
-    event: 'PostCreate',
+    event: "PostCreate",
     onEvent: async (event, context) =>
     {
         const post = event.post;
@@ -103,17 +103,19 @@ Devvit.addTrigger({
 
         if (post === undefined)
         {
-            return console.error("Unable to get post data.");
+            log("ERROR", "Unable to get post data.", "N/A");
+            return;
         }
 
         if (author === undefined)
         {
-            return console.error("Unable to get author data.");
+            log("ERROR", "Unable to get author data.", post.permalink);
+            return;
         }
 
         let userImgUrls: string[] | [] = [];
         const authorName: string = author.name;
-        console.log(`Processing new post "${post.title}" by u/${authorName}`);
+        log("LOG", "Processing new post", post.permalink);
 
         if (post.isImage)
         {
@@ -125,32 +127,58 @@ Devvit.addTrigger({
         }
         else
         {   // TODO check for www.imgur.com links in post body?
-            console.debug("Unhandled post type.");
+            log("WARN", "Post type not supported.", post.permalink);
         }
 
         if (userImgUrls.length <= 0)
         {
-            console.error("Unable to find any images in this post!");
+            log("ERROR", "No images found in image post.", post.permalink);
             return;
         }
 
         const apiKey = await context.settings.get('GOOGLE_VISION_KEY');
         if (!apiKey)
         {
-            console.error("API Key not set!");
+            log("ERROR", "API Key not set!", post.permalink);
             return;
         }
 
         if (typeof apiKey !== 'string')
         {
-            console.error("API Key must be a string");
+            log("ERROR", "Invalid API Key!", post.permalink);
             return;
         }
 
         const opMatches = await reverseImageSearch(apiKey, userImgUrls);
         await findMatchingUsernames(context, authorName, opMatches);
-        await comment(userImgUrls.length, opMatches, context, post.id);
-    },
+        const totalMatchCount = getTotalMatchCount(opMatches);
+        const maxScore = getMaxScore(opMatches);
+
+        const matchCount = await comment(
+            userImgUrls.length,
+            totalMatchCount,
+            opMatches,
+            maxScore,
+            context,
+            post.id
+        );
+
+        await sendModMail(
+            context,
+            authorName,
+            post.title,
+            post.permalink,
+            matchCount
+        );
+
+        await reportPost(context, post.id, matchCount);
+        await removePost(context, post.id, matchCount);
+
+        if (maxScore <= 0)
+        {
+            log("LOG", "Post appears to be OC.", post.permalink);
+        }
+    }
 });
 
 export default Devvit;

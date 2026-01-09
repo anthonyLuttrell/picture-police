@@ -4,7 +4,6 @@ export async function validateApiKey(value: string|undefined)
 {
     if (value === "")
     {
-        console.debug("Empty API key");
         return "No API key provided.";
     }
 

@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@devvit/public-api": "0.12.5",
-    "@devvit/web": "^0.12.5"
+    "@devvit/web": "0.12.5"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",

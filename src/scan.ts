@@ -7,7 +7,8 @@ export async function reverseImageSearch(
     sourceUrls: string[]): Promise<Match[]|[]>
 {
     const promises = sourceUrls.map(async (url, index) =>
-    {
+    {   // FIXME the In-N-Out burger used to return an exact match, but it is
+        //  no longer returning any matches for some reason.
         const result = await checkGoogleVision(url, key);
         if (!result) return null;
         return new Match(result.pagesWithMatchingImages, index);

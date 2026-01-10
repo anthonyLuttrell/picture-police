@@ -6,11 +6,12 @@
 
 ## Key Features
 
-* **Multi-Format Support:** Automatically scans both single-image posts and Reddit Galleries.
+* **Automatic Actions:** No mod interaction is required. Automatically scans every single post, only acts on images, and will take automatic actions based on your settings.
+* **Google Cloud Vision integration:** Uses Google's Cloud Vision "Web Detection" API to perform thorough reverse image searches.
 * **Intelligent Username Verification:** Cross-references found matches with the current author. If the same user posted the image elsewhere on Reddit, it is recognized as a cross-post rather than a theft.
 * **Confidence Scoring:** Provides a percentage-based confidence score for every match to help moderators make informed decisions.
-* **Automated Actions:** Configurable to report, remove, or modmail when stolen content is detected.
-* **Public/Private Feedback:** Can leave a stickied, distinguished comment on posts to inform the community of the image's status.
+* **Configurable Actions:** Configurable to comment, report, remove, or modmail when stolen content is detected.
+* **Public/Private Feedback:** Can leave a stickied comment on posts to inform the community of the image's status.
 
 ---
 
@@ -18,13 +19,13 @@
 
 Once the app is installed on your subreddit, navigate to your **Mod Tools > Apps > Picture Police** and configure the following:
 
-| Setting | Description |
-| :--- | :--- |
-| **Leave a Comment** | Choose to comment: `Never`, `Always`, or `Only on matches`. |
-| **Distinguish/Sticky** | Automatically labels and pins the bot's comment. |
-| **Send Mod Mail** | Notifies the mod team when a positive match is found. |
-| **Report Submission** | Flags the post for manual review in the mod queue. |
-| **Remove Submission** | Automatically removes posts found to be stolen content. |
+| Setting | Description | Default |
+| :--- | :--- |:--------|
+| **Leave a Comment** | Choose to comment: `Never`, `Always`, or `Only on matches`. | `Never` |
+| **Distinguish/Sticky** | Automatically labels and pins the bot's comment. | On      |
+| **Send Mod Mail** | Notifies the mod team when a positive match is found. | On      |
+| **Report Submission** | Flags the post for manual review in the mod queue. | Off     |
+| **Remove Submission** | Automatically removes posts found to be stolen content. | Off     |
 
 ---
 

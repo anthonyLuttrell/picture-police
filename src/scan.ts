@@ -2,6 +2,18 @@ import {checkGoogleVision} from "./gvis.js";
 import {getOpFromUrl} from "./utils.js";
 import {Match} from "./Match.js";
 
+/**
+ * Performs a reverse image search using the provided API key and list of image
+ * source URLs.
+ *
+ * @param {string} key - The API key to authenticate with the reverse image
+ * search service.
+ * @param {string[]} sourceUrls - An array of URLs for the images to perform the
+ * reverse image search on.
+ * @return {Promise<(Match[] | [])>} A promise that resolves to an array of
+ * Match objects for images with matching results, or an empty array if no
+ * matches are found.
+ */
 export async function reverseImageSearch(
     key: string,
     sourceUrls: string[]): Promise<Match[]|[]>

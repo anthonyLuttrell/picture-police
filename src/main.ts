@@ -3,15 +3,6 @@ import {comment, getGalleryUrls, getImgUrl, getTotalMatchCount, getMaxScore, sen
 import {reverseImageSearch, findMatchingUsernames} from "./scan.js";
 // import {validateApiKey} from "./validation.js";
 
-Devvit.configure(
-    {
-        redditAPI: true,
-        http: {
-            enabled: true,
-            domains: ["reddit.com", "redd.it"]
-        },
-    });
-
 Devvit.addSettings([
     {
         type: 'string',

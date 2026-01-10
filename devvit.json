@@ -1,0 +1,17 @@
+{
+  "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
+  "name": "picture-police",
+  "blocks": {
+    "entry": "src/main.ts",
+    "triggers": ["onPostCreate"]
+  },
+  "permissions": {
+    "reddit": {
+      "enable": true
+    },
+    "http": {
+      "enable": true,
+      "domains": ["reddit.com", "redd.it", "vision.googleapis.com"]
+    }
+  }
+}

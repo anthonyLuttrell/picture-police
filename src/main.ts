@@ -74,7 +74,7 @@ Devvit.addSettings([
                 name: "MOD_MAIL",
                 label: "Send mod mail",
                 defaultValue: true,
-                helpText: "Should the bot send a mod mail when a positive match is found?",
+                helpText: "Should the bot send a mod mail notification when a positive match is found?",
             },
             {
                 type: "boolean",
@@ -103,13 +103,13 @@ Devvit.addTrigger({
 
         if (post === undefined)
         {
-            log("ERROR", "Unable to get post data.", "N/A");
+            log("ERROR", "Unable to get post data", "N/A");
             return;
         }
 
         if (author === undefined)
         {
-            log("ERROR", "Unable to get author data.", post.permalink);
+            log("ERROR", "Unable to get author data", post.permalink);
             return;
         }
 
@@ -132,20 +132,20 @@ Devvit.addTrigger({
 
         if (userImgUrls.length <= 0)
         {
-            log("ERROR", "No images found in image post.", post.permalink);
+            log("ERROR", "No images found in image post", post.permalink);
             return;
         }
 
         const apiKey = await context.settings.get('GOOGLE_VISION_KEY');
         if (!apiKey)
         {
-            log("ERROR", "API Key not set!", post.permalink);
+            log("ERROR", "API Key not set", post.permalink);
             return;
         }
 
         if (typeof apiKey !== 'string')
         {
-            log("ERROR", "Invalid API Key!", post.permalink);
+            log("ERROR", "Invalid API Key", post.permalink);
             return;
         }
 
@@ -154,7 +154,7 @@ Devvit.addTrigger({
         const totalMatchCount = getTotalMatchCount(opMatches);
         const maxScore = getMaxScore(opMatches);
 
-        const matchCount = await comment(
+        await comment(
             userImgUrls.length,
             totalMatchCount,
             opMatches,
@@ -168,15 +168,23 @@ Devvit.addTrigger({
             authorName,
             post.title,
             post.permalink,
-            matchCount
+            totalMatchCount,
+            maxScore
         );
 
-        await reportPost(context, post.id, matchCount);
-        await removePost(context, post.id, matchCount);
+        await reportPost(context, post.id, totalMatchCount);
+        await removePost(context, post.id, totalMatchCount);
+
+        log("LOG", `Confidence Score: ${maxScore}`, post.permalink);
+        log("LOG", `Total Matches: ${totalMatchCount}`, post.permalink);
 
         if (maxScore <= 0)
         {
-            log("LOG", "Post appears to be OC.", post.permalink);
+            log("LOG", "Post appears to be OC", post.permalink);
+        }
+        else
+        {
+            log("LOG", "Potential stolen content", post.permalink);
         }
     }
 });

@@ -1,5 +1,8 @@
 import { log } from "./utils.js";
 
+/**
+ * Each Match object represents each "match" from the Web Detection result.
+ */
 export class Match
 {
     private readonly matchingImagesObj: any;
@@ -80,7 +83,7 @@ export class Match
             }
             catch (e)
             {
-                log("ERROR", "Caught error when creating Match object", "N/A")
+                log("ERROR", "Error when creating new Match", page.url)
                 console.error(e);
             }
         }
@@ -89,7 +92,7 @@ export class Match
         {   // There are no full matches, so we will use the partial matches
             this.matchList = tempPartialMatches;
             this.onlyPartialMatch = true;
-            log("DEBUG", "Only partial matches found!", "N/A");
+            log("WARN", "Only partial matches found", "N/A");
         }
     }
 
@@ -103,6 +106,12 @@ export class Match
         return this.matchList;
     }
 
+    /**
+     * We remove matches if the author of this post is the same author of
+     * a matched Reddit post, meaning they are the same OP on two different
+     * posts. Currently, we do not attempt to find the author of any non-Reddit
+     * websites.
+     */
     public removeMatches(urlsToRemove: string[])
     {
         this.matchList = this.matchList.filter(

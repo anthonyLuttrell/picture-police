@@ -1,7 +1,6 @@
 import {RedditAPIClient} from "@devvit/public-api";
 import {Match} from "./Match.js";
 
-const REDDIT_RATE_LIMIT_DELAY_MS = 650; // 100 queries per minute + 50ms buffer
 const MAIL_LINK = "[Click here to submit feedback](https://www.reddit.com/message/compose/?to=picture-police&subject=Picture%20Police%20Feedback&message=Please%20describe%20the%20issue%20or%20feedback%20here:)";
 const DISCLAIMER = `**Note:** Click on external links at your own risk. This `+
     `bot does not guarantee the security of any external websites you visit.`;
@@ -23,6 +22,7 @@ export async function getOpFromUrl(
     url: string,
     reddit: RedditAPIClient): Promise<string | undefined>
 {
+    // FIXME this should use the URL Object (new URL)
     const match = url.match(/\/comments\/([a-z0-9]+)/i);
     if (!match)
     {
@@ -32,7 +32,6 @@ export async function getOpFromUrl(
     const postId = `t3_${match[1]}`;
     try
     {
-        await delay(REDDIT_RATE_LIMIT_DELAY_MS);
         const post = await reddit.getPostById(postId);
         return post.authorName;
     }
@@ -383,7 +382,7 @@ export async function removePost(
  *
  * @return {void} This function does not return any value.
  */
-export function log(level: string, message: string, permalink: string)
+export function log(level: string, message: string, permalink: string): void
 {
     const timestamp = new Date().toISOString();
     const MAX_LOG_LEN = 30;
@@ -412,12 +411,3 @@ export function log(level: string, message: string, permalink: string)
 
     console.log(`${timestamp} | ${coloredLevel} | ${paddedMsg} | ${permalink}`);
 }
-
-/**
- * Delays execution for a specified number of milliseconds.
- *
- * @param ms - The number of milliseconds to delay.
- * @return {Promise<void>} A promise that resolves after the specified delay.
- */
-const delay = (ms: number):
-    Promise<void> => new Promise(resolve => setTimeout(resolve, ms));

@@ -34,7 +34,7 @@ export async function checkGoogleVision(imgUrl: string, apiKey: string)
     }
     catch (e)
     {
-        console.error("Google API Error:", e);
+        console.error("WEB_DETECTION ERROR");
         return null;
     }
 }

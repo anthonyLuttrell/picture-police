@@ -244,8 +244,8 @@ export async function comment(
     }
 
     if (!hasExternalLinks)
-    {   // FIXME this isn't working
-        commentStr.replace((DISCLAIMER + "\n\n"), "");
+    {
+        commentStr = commentStr.replace((DISCLAIMER + "\n\n"), "");
     }
 
     const comment = await context.reddit.submitComment({

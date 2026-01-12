@@ -117,13 +117,14 @@ Devvit.addTrigger({
             userImgUrls = getGalleryUrls(post);
         }
         else
-        {   // TODO check for www.imgur.com links in post body?
-            log("WARN", "Post type not supported.", post.permalink);
+        {
+            log("LOG", "Text post, exiting", post.permalink);
+            return;
         }
 
         if (userImgUrls.length <= 0)
         {
-            log("ERROR", "No images found in image post", post.permalink);
+            log("ERROR", "Image post has no images", post.permalink);
             return;
         }
 

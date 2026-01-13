@@ -1,7 +1,7 @@
 import {RedditAPIClient} from "@devvit/public-api";
 import {Match} from "./Match.js";
 
-const MAIL_LINK = "[Click here to submit feedback](https://www.reddit.com/message/compose/?to=picture-police&subject=Picture%20Police%20Feedback&message=Please%20describe%20the%20issue%20or%20feedback%20here:)";
+const MAIL_LINK = "[Click here to submit feedback](https://www.reddit.com/message/compose/?to=/u/96dpi&subject=Picture%20Police%20Feedback&message=Please%20describe%20the%20issue%20or%20feedback%20here:)";
 const DISCLAIMER = `**Note:** Click on external links at your own risk. This `+
     `bot does not guarantee the security of any external websites you visit.`;
 
@@ -300,7 +300,8 @@ export async function sendModMail(
             `**Author:** u/${authorName}\n\n`+
             `**Title:** ${title}\n\n`+
             `**Matches:** ${numMatches}\n\n`+
-            `**Score:** ${maxScore}`;
+            `**Score:** ${maxScore}\n\n`+
+            `${MAIL_LINK}`;
 
         const modMailId = await context.reddit.modMail.createModNotification({
             subject: "🚨 Picture Police Report 🚨",

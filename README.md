@@ -27,13 +27,14 @@
 
 Once the app is installed on your subreddit, navigate to your **Mod Tools > Apps > Picture Police** and configure the following:
 
-| Setting | Description | Default |
-| :--- | :--- |:--------|
-| **Leave a Comment** | Choose to comment: `Never`, `Always`, or `Only on matches`. | `Never` |
-| **Distinguish/Sticky** | Automatically labels and pins the bot's comment. | On      |
-| **Send Mod Mail** | Notifies the mod team when a positive match is found. | On      |
-| **Report Submission** | Flags the post for manual review in the mod queue. | Off     |
-| **Remove Submission** | Automatically removes posts found to be stolen content. | Off     |
+| Setting                | Description                                                    | Default | Recommended       |
+|:-----------------------|:---------------------------------------------------------------|:--------|-------------------|
+| **Enable Logs**        | Enable "Read logs and install history" to allow log access.    | Off     | On                |
+| **Leave a Comment**    | Choose to comment: `Never`, `Always`, or `Only on matches`.    | `Never` | `Only on matches` |
+| **Distinguish/Sticky** | Automatically labels and pins the bot's comment.               | On      | On                |
+| **Send Mod Mail**      | Notifies the mod team when a positive match is found.          | On      | On                |
+| **Report Submission**  | Flags the post for manual review in the mod queue.             | Off     | Off               |
+| **Remove Submission**  | Automatically removes posts found to be stolen content.        | Off     | Off               |
 
 ---
 
@@ -53,7 +54,6 @@ Once the app is installed on your subreddit, navigate to your **Mod Tools > Apps
 
 * **Language:** TypeScript
 * **Platform:** Devvit (Reddit Developer Platform)
-* **Rate Limiting:** Includes a built-in 650ms delay between Reddit API calls to ensure stability.
 * **Open Source:** The project is [open-source](https://github.com/anthonyLuttrell/picture-police.git), licensed under the Apache 2.0 License. Contributions are welcome!
 
 ## Coming Soon
@@ -70,6 +70,12 @@ Once the app is installed on your subreddit, navigate to your **Mod Tools > Apps
 ---
 
 ## Changelog
+
+### Version 1.1.5
+* Correct the "to" field in the feedback hyperlink
+* Add the feedback hyperlink to mod mail notifications
+* Update README to include details about enabling logs
+* Update README to add a column for "Recommended" settings
 
 ### Version 1.1.3
 * Sync changelog with uploaded version

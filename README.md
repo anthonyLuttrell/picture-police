@@ -53,7 +53,6 @@ Once the app is installed on your subreddit, navigate to your **Mod Tools > Apps
 
 * **Language:** TypeScript
 * **Platform:** Devvit (Reddit Developer Platform)
-* **Rate Limiting:** Includes a built-in 650ms delay between Reddit API calls to ensure stability.
 * **Open Source:** The project is [open-source](https://github.com/anthonyLuttrell/picture-police.git), licensed under the Apache 2.0 License. Contributions are welcome!
 
 ## Coming Soon

@@ -71,5 +71,21 @@ Once the app is installed on your subreddit, navigate to your **Mod Tools > Apps
 
 ## Changelog
 
+### Version 1.1.3
+* Sync changelog with uploaded version
+
+### Version 1.1.1
+* Fix an issue where text posts are not detected correctly
+* Update README
+
+### Version 1.1.0
+* Update README with more accurate descriptions
+* Update log message and function documentation
+* Remove the external link disclaimer if not an external match
+* Remove the delay function
+* Remove console.error output for the error object to avoid leaking API… 
+* Comment out unused Interface
+* Migrate from .yaml to .json config
+
 ### Version 1.0.0
 * Initial release.

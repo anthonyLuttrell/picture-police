@@ -6,7 +6,7 @@
 
 ## Key Features
 
-* **Automatic Actions:** No mod interaction is required. Automatically scans every single post, only acts on images, and will take automatic actions based on your settings.
+* **Automatic Actions:** Unlike other similar tools, no mod interaction is required. Automatically scans every single post, only acts on images, and will take automatic actions based on your settings.
 * **Google Cloud Vision integration:** Uses Google's Cloud Vision "Web Detection" API to perform thorough reverse image searches.
 * **Intelligent Username Verification:** Cross-references found matches with the current author. If the same user posted the image elsewhere on Reddit, it is recognized as a cross-post rather than a theft.
 * **Confidence Scoring:** Provides a percentage-based confidence score for every match to help moderators make informed decisions.
@@ -15,7 +15,15 @@
 
 ---
 
-##  Installation & Setup
+## Who is this for?
+
+* **Moderators** who want automatic detection and handling of stolen content. 
+* **Subreddits** where users are expected to submit original content only.
+* **Anyone** who wants to help protect their community from the spread of stolen content.
+
+---
+
+## Installation & Setup
 
 Once the app is installed on your subreddit, navigate to your **Mod Tools > Apps > Picture Police** and configure the following:
 

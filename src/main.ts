@@ -118,7 +118,7 @@ Devvit.addTrigger({
         }
         else
         {
-            log("LOG", "Text post, exiting", post.permalink);
+            log("LOG", "Non-image post, exiting", post.permalink);
             return;
         }
 

@@ -152,7 +152,8 @@ Devvit.addTrigger({
             opMatches,
             maxScore,
             context,
-            post.id
+            post.id,
+            authorName
         );
 
         await sendModMail(

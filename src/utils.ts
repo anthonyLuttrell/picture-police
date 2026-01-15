@@ -138,6 +138,7 @@ export function getMaxScore(sourceMatches: Match[] | [],): number
  * and Reddit interaction methods.
  * @param {string} postId - The unique identifier of the Reddit post to which
  * the comment should be submitted.
+ * @param {string} authorName - The username of the author of this post.
  * @return {Promise<number>} A promise that resolves to the total number of
  * matches found.
  */
@@ -147,7 +148,8 @@ export async function comment(
     sourceMatches: Match[]|[],
     maxScore: number,
     context: any,
-    postId: string): Promise<number>
+    postId: string,
+    authorName: string): Promise<number>
 {
     const settings = await context.settings.getAll();
     const urlsToPrint = new Map<number, string>();
@@ -201,12 +203,14 @@ export async function comment(
     });
 
     const ocCommentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
-        `This image appears to be original content. I could not find any `+
-        `matching images anywhere on the web.\n\n---\n\n${MAIL_LINK}`;
+        `This image appears to be u/${authorName}'s original content. I could `+
+        `not find any matching images anywhere on the web.\n\n`+
+        `---\n\n${MAIL_LINK}`;
 
     const ocCommentStrPlural = `🚨 **Picture Police** 🚨\n\n` +
-        `These images appear to be original content. I could not find any `+
-        `matching images anywhere on the web.\n\n---\n\n${MAIL_LINK}`;
+        `These images appear to be u/${authorName}'s original content. I could `+
+        `not find any matching images anywhere on the web.\n\n`+
+        `---\n\n${MAIL_LINK}`;
 
     const stolenCommentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
         `I am **${maxScore}%** confident that this is a **stolen** image. ` +

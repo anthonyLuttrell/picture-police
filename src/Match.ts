@@ -1,4 +1,4 @@
-import { log } from "./utils.js";
+import {log} from "./utils.js";
 
 /**
  * Each Match object represents each "match" from the Web Detection result.
@@ -6,16 +6,18 @@ import { log } from "./utils.js";
 export class Match
 {
     private readonly matchingImagesObj: any;
+    private readonly authorName: string;
     private matchList: string[] = [];
     private numCleanedMatches: number = 0;
     private onlyPartialMatch: boolean = false;
     public readonly galleryIdx: number;
     public readonly numOriginalMatches: number = 0;
 
-    constructor(matchingImagesObj: any, index: number)
+    constructor(matchingImagesObj: any, index: number, authorName: string)
     {
         this.galleryIdx = index + 1; // 1-based to align with gallery images
         this.matchingImagesObj = matchingImagesObj === undefined ? [] : matchingImagesObj;
+        this.authorName = authorName;
         this.setMatchList();
         this.numOriginalMatches = this.matchList.length;
     }
@@ -50,14 +52,21 @@ export class Match
         // of partial matches to add later if we don't find any full matches.
         const tempPartialMatches: string[] = [];
         const matchingPages = this.matchingImagesObj;
+        const fbGroupNames: string[] = [];
 
         for (const page of matchingPages)
         {
+            if (page.url.includes(this.authorName))
+            {   // This will handle any sites that include OP's name in the URL
+                continue;
+            }
+
             const hasFullMatch = page.fullMatchingImages !== undefined;
             const hasPartialMatch = page.partialMatchingImages !== undefined;
 
             try
             {
+                let urlToAdd = page.url;
                 const urlObj = new URL(page.url);
                 const path = urlObj.pathname;
                 const host = urlObj.hostname;
@@ -72,13 +81,39 @@ export class Match
                                    !host.includes("redd.it") &&
                                    proto.includes("https");
 
+                const isFbGroup = host.endsWith("facebook.com") &&
+                                  path.includes("groups");
+
+                if (isFbGroup)
+                {   // Facebook group posts rarely link to the correct post, so
+                    // instead of saving the URL of an incorrect post, we will
+                    // just save the URL to the actual group, making sure to add
+                    // only one URL match for each unique FB group. This will
+                    // also (correctly) lower the confidence score if other
+                    // Reddit posts are found with the same OP. We always assume
+                    // a FB group post URL will be structured exactly like this:
+                    // https://www.facebook.com/groups/<group_name>/posts/<post_id>/
+                    const pathSegments = path.split('/');
+                    urlObj.pathname = pathSegments.slice(0, 3).join('/');
+                    const fbGroupName = pathSegments[2];
+                    if (!fbGroupNames.includes(fbGroupName))
+                    {   // keep track of the group names to avoid duplicates
+                        fbGroupNames.push(fbGroupName);
+                        urlToAdd = urlObj.href;
+                    }
+                    else
+                    {
+                        continue;
+                    }
+                }
+
                 if (hasFullMatch && (isRedditPermalink || isExternal))
                 {
-                    this.matchList.push(page.url);
+                    this.matchList.push(urlToAdd);
                 }
                 else if (hasPartialMatch && (isRedditPermalink || isExternal))
                 {
-                    tempPartialMatches.push(page.url);
+                    tempPartialMatches.push(urlToAdd);
                 }
             }
             catch (e)
@@ -123,13 +158,14 @@ export class Match
     get score()
     {
         const matchDiff = this.numOriginalMatches - this.numCleanedMatches;
+
         let score = Math.round(
             ((1 - (matchDiff / this.numOriginalMatches)) * 100)
         );
 
         if (this.onlyPartialMatch)
         {   // if we only found partial matches, we are less confident, so
-            // reduce the score
+            // reduce the score by half
             score /= 2;
         }
 

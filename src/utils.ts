@@ -108,9 +108,10 @@ export function getMaxScore(sourceMatches: Match[] | [],): number
 
     for (const match of sourceMatches)
     {
-        if (match.score > maxScore)
+        const thisScore = match.score;
+        if (thisScore > maxScore)
         {
-            maxScore = match.score;
+            maxScore = thisScore;
         }
     }
 
@@ -138,6 +139,7 @@ export function getMaxScore(sourceMatches: Match[] | [],): number
  * and Reddit interaction methods.
  * @param {string} postId - The unique identifier of the Reddit post to which
  * the comment should be submitted.
+ * @param {string} authorName - The username of the author of this post.
  * @return {Promise<number>} A promise that resolves to the total number of
  * matches found.
  */
@@ -147,7 +149,8 @@ export async function comment(
     sourceMatches: Match[]|[],
     maxScore: number,
     context: any,
-    postId: string): Promise<number>
+    postId: string,
+    authorName: string): Promise<number>
 {
     const settings = await context.settings.getAll();
     const urlsToPrint = new Map<number, string>();
@@ -201,16 +204,30 @@ export async function comment(
     });
 
     const ocCommentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
-        `This image appears to be original content. I could not find any `+
-        `matching images anywhere on the web.\n\n---\n\n${MAIL_LINK}`;
+        `This image appears to be u/${authorName}'s original content. I could `+
+        `not find any matching images anywhere on the web.\n\n`+
+        `---\n\n${MAIL_LINK}`;
 
     const ocCommentStrPlural = `🚨 **Picture Police** 🚨\n\n` +
-        `These images appear to be original content. I could not find any `+
-        `matching images anywhere on the web.\n\n---\n\n${MAIL_LINK}`;
+        `These images appear to be u/${authorName}'s original content. I could `+
+        `not find any matching images anywhere on the web.\n\n`+
+        `---\n\n${MAIL_LINK}`;
+
+    const possibleOcCommentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
+        `I am only **${maxScore}%** confident that this is a **stolen** image. `+
+        `I found duplicate image(s) on **${totalMatchCount}** other site(s), `+
+        `but I could not verify if the author is the same. I recommend that OP `+
+        `provides proof that they are the author.`;
+
+    const possibleOcCommentStrPlural = `🚨 **Picture Police** 🚨\n\n` +
+        `I am only **${maxScore}%** confident that this post contains `+
+        `**stolen** images. I found duplicate image(s) on **${totalMatchCount}** other site(s), `+
+        `but I could not verify if the author is the same. I recommend that OP `+
+        `provides proof that they are the author.`;
 
     const stolenCommentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
         `I am **${maxScore}%** confident that this is a **stolen** image. ` +
-        `I found duplicate images on **${totalMatchCount}** other sites. ` +
+        `I found duplicate image(s) on **${totalMatchCount}** other site(s). ` +
         `Here is an example of what I found:\n\n `+
         `${urlStr}${DISCLAIMER}\n\n---\n\n${MAIL_LINK}`;
 
@@ -221,6 +238,8 @@ export async function comment(
         `${urlStr}${DISCLAIMER}\n\n---\n\n${MAIL_LINK}`;
 
     const isOc = maxScore <= 0;
+    const possibleOc = !isOc && maxScore < 50;
+    const probablyStolen = !possibleOc && maxScore <= 100;
     const isSingular = numUserImages === 1;
     const isPlural = numUserImages > 1;
     let commentStr = "";
@@ -233,11 +252,19 @@ export async function comment(
     {
         commentStr = ocCommentStrPlural;
     }
-    else if (!isOc && isSingular)
+    else if (possibleOc && isSingular)
+    {
+        commentStr = possibleOcCommentStrSingular;
+    }
+    else if (possibleOc && isPlural)
+    {
+        commentStr = possibleOcCommentStrPlural;
+    }
+    else if (probablyStolen && isSingular)
     {
         commentStr = stolenCommentStrSingular;
     }
-    else if (!isOc && isPlural)
+    else if (probablyStolen && isPlural)
     {
         commentStr = stolenCommentStrPlural;
     }
@@ -355,16 +382,18 @@ export async function reportPost(
  * @param {string} postId - The unique identifier of the post to be removed.
  * @param {number} numMatches - The number of matches to determine if the post
  *                               qualifies for removal.
+ * @param {number} maxScore - The highest confidence score among the matches.
  * @return {Promise<void>} A promise that resolves when the post removal
  *                         process is completed.
  */
 export async function removePost(
     context: any,
     postId: string,
-    numMatches: number): Promise<void>
+    numMatches: number,
+    maxScore: number): Promise<void>
 {
     const removePost: boolean = await context.settings.get("REMOVE");
-    if (removePost && numMatches > 0)
+    if (removePost && numMatches > 0 && maxScore > 50)
     {
         await context.reddit.remove(postId, false);
         log("LOG", "Removed post", postId);

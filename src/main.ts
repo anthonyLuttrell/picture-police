@@ -106,6 +106,12 @@ Devvit.addTrigger({
 
         let userImgUrls: string[] | [] = [];
         const authorName: string = author.name;
+        // if (!authorName)
+        // {
+        //     log("ERROR", "Unable to get author name", post.permalink);
+        //     return;
+        // }
+
         log("LOG", "Processing new post", post.permalink);
 
         if (post.isImage)
@@ -118,7 +124,7 @@ Devvit.addTrigger({
         }
         else
         {
-            log("LOG", "Text post, exiting", post.permalink);
+            log("LOG", "Non-image post, exiting", post.permalink);
             return;
         }
 
@@ -141,7 +147,12 @@ Devvit.addTrigger({
             return;
         }
 
-        const opMatches = await reverseImageSearch(apiKey, userImgUrls);
+        const opMatches = await reverseImageSearch(
+            apiKey,
+            userImgUrls,
+            authorName
+        );
+
         await findMatchingUsernames(context, authorName, opMatches);
         const totalMatchCount = getTotalMatchCount(opMatches);
         const maxScore = getMaxScore(opMatches);
@@ -152,7 +163,8 @@ Devvit.addTrigger({
             opMatches,
             maxScore,
             context,
-            post.id
+            post.id,
+            authorName
         );
 
         await sendModMail(
@@ -165,7 +177,7 @@ Devvit.addTrigger({
         );
 
         await reportPost(context, post.id, totalMatchCount);
-        await removePost(context, post.id, totalMatchCount);
+        await removePost(context, post.id, totalMatchCount, maxScore);
 
         log("LOG", `Confidence Score: ${maxScore}`, post.permalink);
         log("LOG", `Total Matches: ${totalMatchCount}`, post.permalink);

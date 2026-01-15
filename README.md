@@ -71,6 +71,14 @@ Once the app is installed on your subreddit, navigate to your **Mod Tools > Apps
 
 ## Changelog
 
+### Version 1.1.6
+* Skip matches where OP's username appears in the URL
+* Improve comment clarity when less than 50% confident of a match
+* Better handle Facebook group URLs
+* OC comment strings now include the author's name
+* Prevent a post from being removed if the max confidence score is not above 50%
+* Change log message for non-image posts
+
 ### Version 1.1.5
 * Correct the "to" field in the feedback hyperlink
 * Add the feedback hyperlink to mod mail notifications

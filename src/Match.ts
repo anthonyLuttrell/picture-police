@@ -6,16 +6,18 @@ import {log} from "./utils.js";
 export class Match
 {
     private readonly matchingImagesObj: any;
+    private readonly authorName: string;
     private matchList: string[] = [];
     private numCleanedMatches: number = 0;
     private onlyPartialMatch: boolean = false;
     public readonly galleryIdx: number;
     public readonly numOriginalMatches: number = 0;
 
-    constructor(matchingImagesObj: any, index: number)
+    constructor(matchingImagesObj: any, index: number, authorName: string)
     {
         this.galleryIdx = index + 1; // 1-based to align with gallery images
         this.matchingImagesObj = matchingImagesObj === undefined ? [] : matchingImagesObj;
+        this.authorName = authorName;
         this.setMatchList();
         this.numOriginalMatches = this.matchList.length;
     }
@@ -54,6 +56,11 @@ export class Match
 
         for (const page of matchingPages)
         {
+            if (page.url.includes(this.authorName))
+            {   // This will handle any sites that include OP's name in the URL
+                continue;
+            }
+
             const hasFullMatch = page.fullMatchingImages !== undefined;
             const hasPartialMatch = page.partialMatchingImages !== undefined;
 

@@ -355,16 +355,18 @@ export async function reportPost(
  * @param {string} postId - The unique identifier of the post to be removed.
  * @param {number} numMatches - The number of matches to determine if the post
  *                               qualifies for removal.
+ * @param {number} maxScore - The highest confidence score among the matches.
  * @return {Promise<void>} A promise that resolves when the post removal
  *                         process is completed.
  */
 export async function removePost(
     context: any,
     postId: string,
-    numMatches: number): Promise<void>
+    numMatches: number,
+    maxScore: number): Promise<void>
 {
     const removePost: boolean = await context.settings.get("REMOVE");
-    if (removePost && numMatches > 0)
+    if (removePost && numMatches > 0 && maxScore > 50)
     {
         await context.reddit.remove(postId, false);
         log("LOG", "Removed post", postId);

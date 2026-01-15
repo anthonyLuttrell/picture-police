@@ -165,7 +165,7 @@ Devvit.addTrigger({
         );
 
         await reportPost(context, post.id, totalMatchCount);
-        await removePost(context, post.id, totalMatchCount);
+        await removePost(context, post.id, totalMatchCount, maxScore);
 
         log("LOG", `Confidence Score: ${maxScore}`, post.permalink);
         log("LOG", `Total Matches: ${totalMatchCount}`, post.permalink);

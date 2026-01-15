@@ -108,9 +108,10 @@ export function getMaxScore(sourceMatches: Match[] | [],): number
 
     for (const match of sourceMatches)
     {
-        if (match.score > maxScore)
+        const thisScore = match.score;
+        if (thisScore > maxScore)
         {
-            maxScore = match.score;
+            maxScore = thisScore;
         }
     }
 
@@ -212,9 +213,21 @@ export async function comment(
         `not find any matching images anywhere on the web.\n\n`+
         `---\n\n${MAIL_LINK}`;
 
+    const possibleOcCommentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
+        `I am only **${maxScore}%** confident that this is a **stolen** image. `+
+        `I found duplicate image(s) on **${totalMatchCount}** other site(s), `+
+        `but I could not verify if the author is the same. I recommend that OP `+
+        `provides proof that they are the author.`;
+
+    const possibleOcCommentStrPlural = `🚨 **Picture Police** 🚨\n\n` +
+        `I am only **${maxScore}%** confident that this post contains `+
+        `**stolen** images. I found duplicate image(s) on **${totalMatchCount}** other site(s), `+
+        `but I could not verify if the author is the same. I recommend that OP `+
+        `provides proof that they are the author.`;
+
     const stolenCommentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
         `I am **${maxScore}%** confident that this is a **stolen** image. ` +
-        `I found duplicate images on **${totalMatchCount}** other sites. ` +
+        `I found duplicate image(s) on **${totalMatchCount}** other site(s). ` +
         `Here is an example of what I found:\n\n `+
         `${urlStr}${DISCLAIMER}\n\n---\n\n${MAIL_LINK}`;
 
@@ -225,6 +238,8 @@ export async function comment(
         `${urlStr}${DISCLAIMER}\n\n---\n\n${MAIL_LINK}`;
 
     const isOc = maxScore <= 0;
+    const possibleOc = !isOc && maxScore < 50;
+    const probablyStolen = !possibleOc && maxScore <= 100;
     const isSingular = numUserImages === 1;
     const isPlural = numUserImages > 1;
     let commentStr = "";
@@ -237,11 +252,19 @@ export async function comment(
     {
         commentStr = ocCommentStrPlural;
     }
-    else if (!isOc && isSingular)
+    else if (possibleOc && isSingular)
+    {
+        commentStr = possibleOcCommentStrSingular;
+    }
+    else if (possibleOc && isPlural)
+    {
+        commentStr = possibleOcCommentStrPlural;
+    }
+    else if (probablyStolen && isSingular)
     {
         commentStr = stolenCommentStrSingular;
     }
-    else if (!isOc && isPlural)
+    else if (probablyStolen && isPlural)
     {
         commentStr = stolenCommentStrPlural;
     }

@@ -106,6 +106,12 @@ Devvit.addTrigger({
 
         let userImgUrls: string[] | [] = [];
         const authorName: string = author.name;
+        // if (!authorName)
+        // {
+        //     log("ERROR", "Unable to get author name", post.permalink);
+        //     return;
+        // }
+
         log("LOG", "Processing new post", post.permalink);
 
         if (post.isImage)
@@ -141,7 +147,12 @@ Devvit.addTrigger({
             return;
         }
 
-        const opMatches = await reverseImageSearch(apiKey, userImgUrls);
+        const opMatches = await reverseImageSearch(
+            apiKey,
+            userImgUrls,
+            authorName
+        );
+
         await findMatchingUsernames(context, authorName, opMatches);
         const totalMatchCount = getTotalMatchCount(opMatches);
         const maxScore = getMaxScore(opMatches);

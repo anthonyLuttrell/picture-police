@@ -4,7 +4,7 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "node",
-    "types": ["node", "jest"],
+    "types": ["node"],
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,

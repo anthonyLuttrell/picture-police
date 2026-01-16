@@ -1,7 +1,7 @@
 import {RedditAPIClient} from "@devvit/public-api";
 import {Match} from "./Match.js";
 
-const MAIL_LINK = "[Click here to submit feedback](https://www.reddit.com/message/compose/?to=/u/96dpi&subject=Picture%20Police%20Feedback&message=Please%20describe%20the%20issue%20or%20feedback%20here:)";
+const MAIL_LINK = "[Click here to submit feedback](https://www.reddit.com/message/compose/?to=96dpi&subject=Picture%20Police%20Feedback&message=Please%20describe%20the%20issue%20or%20feedback%20here:)";
 const DISCLAIMER = `**Note:** Click on external links at your own risk. This `+
     `bot does not guarantee the security of any external websites you visit.`;
 

@@ -328,7 +328,7 @@ export async function sendModMail(
             `**Author:** u/${authorName}\n\n`+
             `**Title:** ${title}\n\n`+
             `**Matches:** ${numMatches}\n\n`+
-            `**Score:** ${maxScore}\n\n`+
+            `**Score:** ${maxScore}%\n\n`+
             `${MAIL_LINK}`;
 
         const modMailId = await context.reddit.modMail.createModNotification({

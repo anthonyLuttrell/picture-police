@@ -1,6 +1,7 @@
 import {RedditAPIClient} from "@devvit/public-api";
 import {Match} from "./Match.js";
 
+const MIN_CONF = 50; // a score BELOW this number is considered NOT confident
 const MAIL_LINK = "[Click here to submit feedback](https://www.reddit.com/message/compose/?to=96dpi&subject=Picture%20Police%20Feedback&message=Please%20describe%20the%20issue%20or%20feedback%20here:)";
 const DISCLAIMER = `**Note:** Click on external links at your own risk. This `+
     `bot does not guarantee the security of any external websites you visit.`;
@@ -238,7 +239,7 @@ export async function comment(
         `${urlStr}${DISCLAIMER}\n\n---\n\n${MAIL_LINK}`;
 
     const isOc = maxScore <= 0;
-    const possibleOc = !isOc && maxScore < 50;
+    const possibleOc = !isOc && maxScore < MIN_CONF;
     const probablyStolen = !possibleOc && maxScore <= 100;
     const isSingular = numUserImages === 1;
     const isPlural = numUserImages > 1;
@@ -393,7 +394,7 @@ export async function removePost(
     maxScore: number): Promise<void>
 {
     const removePost: boolean = await context.settings.get("REMOVE");
-    if (removePost && numMatches > 0 && maxScore > 50)
+    if (removePost && numMatches > 0 && maxScore >= MIN_CONF)
     {
         await context.reddit.remove(postId, false);
         log("LOG", "Removed post", postId);

@@ -1,5 +1,5 @@
 import {Devvit, SettingScope} from "@devvit/public-api";
-import {comment, getGalleryUrls, getImgUrl, getTotalMatchCount, getMaxScore, sendModMail, reportPost, removePost, log} from "./utils.js";
+import {comment, getTotalMatchCount, getMaxScore, sendModMail, reportPost, removePost, log} from "./utils.js";
 import {reverseImageSearch, findMatchingUsernames} from "./scan.js";
 // import {validateApiKey} from "./validation.js";
 
@@ -98,6 +98,8 @@ Devvit.addTrigger({
             return;
         }
 
+        log("LOG", "Processing new post", post.permalink);
+
         if (author === undefined)
         {
             log("ERROR", "Unable to get author data", post.permalink);
@@ -106,25 +108,33 @@ Devvit.addTrigger({
 
         let userImgUrls: string[] | [] = [];
         const authorName: string = author.name;
-        // if (!authorName)
-        // {
-        //     log("ERROR", "Unable to get author name", post.permalink);
-        //     return;
-        // }
-
-        log("LOG", "Processing new post", post.permalink);
 
         if (post.isImage)
         {
-            userImgUrls = getImgUrl(post);
+            userImgUrls = [post.url];
         }
         else if (post.isGallery)
         {
-            userImgUrls = getGalleryUrls(post);
+            userImgUrls = post.galleryImages;
+        }
+        else if (post.isMultiMedia)
+        {
+            log("INFO", "Multi-media post detected, exiting", post.permalink);
+            return;
+        }
+        else if (post.isVideo)
+        {
+            log("INFO", "Video post detected, exiting", post.permalink);
+            return;
+        }
+        else if (post.isSelf)
+        {
+            log("INFO", "Self post detected, exiting", post.permalink);
+            return;
         }
         else
         {
-            log("LOG", "Non-image post, exiting", post.permalink);
+            log("INFO", "Non-image post, exiting", post.permalink);
             return;
         }
 
@@ -184,11 +194,11 @@ Devvit.addTrigger({
 
         if (maxScore <= 0)
         {
-            log("LOG", "Post appears to be OC", post.permalink);
+            log("LOG", "Post appears to be OC", post.permalink, "GREEN");
         }
         else
         {
-            log("LOG", "Potential stolen content", post.permalink);
+            log("LOG", "Potential stolen content", post.permalink, "YELLOW");
         }
     }
 });

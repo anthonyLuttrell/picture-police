@@ -43,31 +43,6 @@ export async function getOpFromUrl(
 }
 
 /**
- * Extracts the image URL from a single-image Reddit post.
- */
-export function getImgUrl(post: any): string[] | []
-{
-    return post.url.match(/\.(jpeg|jpg|png)$/i) ? [post.url] : [];
-}
-
-/**
- * Extracts and returns an array of valid gallery image URLs. Valid URLs are
- * determined by matching file extensions (jpeg, jpg, png).
- *
- * @param {any} post - The post object containing a galleryImages property.
- * @return {string[] | []} An array of valid image URLs if available, or an
- * empty array if no valid URLs are present.
- */
-export function getGalleryUrls(post: any): string[] | []
-{
-    const urlList = post.galleryImages.filter(
-        (url: string) => url.match(/\.(jpeg|jpg|png)$/i)
-    );
-
-    return urlList.length > 0 ? urlList : [];
-}
-
-/**
  * Calculates the total number of matches from the provided array of Match
  * objects.
  *
@@ -216,19 +191,19 @@ export async function comment(
 
     const possibleOcCommentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
         `I am only **${maxScore}%** confident that this is a **stolen** image. `+
-        `I found duplicate image(s) on **${totalMatchCount}** other site(s), `+
+        `I found the same image on **${totalMatchCount}** other site(s), `+
         `but I could not verify if the author is the same. I recommend that OP `+
         `provides proof that they are the author.`;
 
     const possibleOcCommentStrPlural = `🚨 **Picture Police** 🚨\n\n` +
         `I am only **${maxScore}%** confident that this post contains `+
-        `**stolen** images. I found duplicate image(s) on **${totalMatchCount}** other site(s), `+
-        `but I could not verify if the author is the same. I recommend that OP `+
-        `provides proof that they are the author.`;
+        `**stolen** images. I found duplicate images on **${totalMatchCount}** `+
+        `other site(s), but I could not verify if the author is the same. I `+
+        `recommend that OP provides proof that they are the author.`;
 
     const stolenCommentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
         `I am **${maxScore}%** confident that this is a **stolen** image. ` +
-        `I found duplicate image(s) on **${totalMatchCount}** other site(s). ` +
+        `I found the same image on **${totalMatchCount}** other site(s). ` +
         `Here is an example of what I found:\n\n `+
         `${urlStr}${DISCLAIMER}\n\n---\n\n${MAIL_LINK}`;
 
@@ -454,7 +429,9 @@ export function log(
     else if (upperLevel === "DEBUG") colorCode = fgColors.BLUE;
     else if (upperLevel === "INFO") colorCode = fgColors.CYAN;
 
+    const selectedColor = colorCode; // prevents level text color from changing
     let bgCode = "";
+
     if (backgroundColor)
     {
         const bgKey = backgroundColor.toUpperCase();
@@ -472,7 +449,8 @@ export function log(
         ? message.substring(0, (MAX_LOG_LEN - 3)) + "..."
         : message.padEnd(MAX_LOG_LEN);
 
-    const coloredLevel = `${bgCode}${colorCode}${paddedLevel}${fgColors.RESET}`;
+    const coloredLevel = `${selectedColor}${paddedLevel}${fgColors.RESET}`;
+    const coloredMsg = `${bgCode}${colorCode}${paddedMsg}${fgColors.RESET}`;
 
-    console.log(`${timestamp} | ${coloredLevel} | ${paddedMsg} | ${permalink}`);
+    console.log(`${timestamp} | ${coloredLevel} | ${coloredMsg} | ${permalink}`);
 }

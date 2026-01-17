@@ -410,35 +410,69 @@ export async function removePost(
  * maximum length, it will be truncated with ellipsis.
  * @param {string} permalink - A URL or reference for additional context
  * related to the log.
- *
+ * @param {string} backgroundColor - Sets the optional background color.
  * @return {void} This function does not return any value.
  */
-export function log(level: string, message: string, permalink: string): void
+export function log(
+    level: string,
+    message: string,
+    permalink: string,
+    backgroundColor?: string): void
 {
     const timestamp = new Date().toISOString();
     const MAX_LOG_LEN = 30;
 
-    const colors = {
+    const fgColors: { [key: string]: string } = {
         RESET: "\x1b[0m",
+        BLACK: "\x1b[30m",
         RED: "\x1b[31m",
+        GREEN: "\x1b[32m",
         YELLOW: "\x1b[33m",
         BLUE: "\x1b[34m",
+        MAGENTA: "\x1b[35m",
+        CYAN: "\x1b[36m",
         WHITE: "\x1b[37m"
     };
 
-    let colorCode = colors.WHITE;
+    const bgColors: { [key: string]: string } = {
+        BLACK: "\x1b[40m",
+        RED: "\x1b[41m",
+        GREEN: "\x1b[42m",
+        YELLOW: "\x1b[43m",
+        BLUE: "\x1b[44m",
+        MAGENTA: "\x1b[45m",
+        CYAN: "\x1b[46m",
+        WHITE: "\x1b[47m"
+    };
+
+    let colorCode = fgColors.WHITE;
     const upperLevel = level.toUpperCase();
     const paddedLevel = upperLevel.padEnd(5);
 
-    if (upperLevel === "ERROR") colorCode = colors.RED;
-    else if (upperLevel === "WARN") colorCode = colors.YELLOW;
-    else if (upperLevel === "DEBUG") colorCode = colors.BLUE;
+    if (upperLevel === "ERROR") colorCode = fgColors.RED;
+    else if (upperLevel === "WARN") colorCode = fgColors.YELLOW;
+    else if (upperLevel === "DEBUG") colorCode = fgColors.BLUE;
+    else if (upperLevel === "INFO") colorCode = fgColors.CYAN;
+
+    let bgCode = "";
+    if (backgroundColor)
+    {
+        const bgKey = backgroundColor.toUpperCase();
+        if (bgKey in bgColors)
+        {
+            bgCode = bgColors[bgKey];
+            if (["YELLOW", "WHITE", "CYAN", "GREEN"].includes(bgKey))
+            {
+                colorCode = fgColors.BLACK;
+            }
+        }
+    }
 
     const paddedMsg = message.length > MAX_LOG_LEN
         ? message.substring(0, (MAX_LOG_LEN - 3)) + "..."
         : message.padEnd(MAX_LOG_LEN);
 
-    const coloredLevel = `${colorCode}${paddedLevel}${colors.RESET}`;
+    const coloredLevel = `${bgCode}${colorCode}${paddedLevel}${fgColors.RESET}`;
 
     console.log(`${timestamp} | ${coloredLevel} | ${paddedMsg} | ${permalink}`);
 }

@@ -54,10 +54,21 @@ export class Match
         const matchingPages = this.matchingImagesObj;
         const fbGroupNames: string[] = [];
 
+        // Reddit only allows underscore and hyphen in usernames
+        let cleanedAuthName = this.authorName.replace(/-/g, "").toLowerCase();
+        cleanedAuthName = cleanedAuthName.replace(/_/g, "");
+
+        // Underscores are not recommended in URLs, so we will try with a hyphen
+        const hyphenAuthName = this.authorName.replace(/_/g, "-").toLowerCase();
+
         for (const page of matchingPages)
         {
-            if (page.url.includes(this.authorName))
-            {   // This will handle any sites that include OP's name in the URL
+            const url = page.url.toLowerCase();
+
+            if (url.includes(this.authorName) ||
+                url.includes(cleanedAuthName) ||
+                url.includes(hyphenAuthName))
+            {   // This will handle any site that has OP's name in the URL
                 continue;
             }
 
@@ -66,8 +77,8 @@ export class Match
 
             try
             {
-                let urlToAdd = page.url;
-                const urlObj = new URL(page.url);
+                let urlToAdd = url;
+                const urlObj = new URL(url);
                 const path = urlObj.pathname;
                 const host = urlObj.hostname;
                 const proto = urlObj.protocol;
@@ -118,7 +129,7 @@ export class Match
             }
             catch (e)
             {
-                log("ERROR", "Error when creating new Match", page.url)
+                log("ERROR", "Error when creating new Match", url)
                 console.error(e);
             }
         }

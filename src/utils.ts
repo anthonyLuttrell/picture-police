@@ -1,7 +1,8 @@
 import {RedditAPIClient} from "@devvit/public-api";
 import {Match} from "./Match.js";
 
-const MAIL_LINK = "[Click here to submit feedback](https://www.reddit.com/message/compose/?to=/u/96dpi&subject=Picture%20Police%20Feedback&message=Please%20describe%20the%20issue%20or%20feedback%20here:)";
+const MIN_CONF = 50; // a score BELOW this number is considered NOT confident
+const MAIL_LINK = "[Click here to submit feedback](https://www.reddit.com/message/compose/?to=96dpi&subject=Picture%20Police%20Feedback&message=Please%20describe%20the%20issue%20or%20feedback%20here:)";
 const DISCLAIMER = `**Note:** Click on external links at your own risk. This `+
     `bot does not guarantee the security of any external websites you visit.`;
 
@@ -39,31 +40,6 @@ export async function getOpFromUrl(
     {
         return undefined;
     }
-}
-
-/**
- * Extracts the image URL from a single-image Reddit post.
- */
-export function getImgUrl(post: any): string[] | []
-{
-    return post.url.match(/\.(jpeg|jpg|png)$/i) ? [post.url] : [];
-}
-
-/**
- * Extracts and returns an array of valid gallery image URLs. Valid URLs are
- * determined by matching file extensions (jpeg, jpg, png).
- *
- * @param {any} post - The post object containing a galleryImages property.
- * @return {string[] | []} An array of valid image URLs if available, or an
- * empty array if no valid URLs are present.
- */
-export function getGalleryUrls(post: any): string[] | []
-{
-    const urlList = post.galleryImages.filter(
-        (url: string) => url.match(/\.(jpeg|jpg|png)$/i)
-    );
-
-    return urlList.length > 0 ? urlList : [];
 }
 
 /**
@@ -215,19 +191,19 @@ export async function comment(
 
     const possibleOcCommentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
         `I am only **${maxScore}%** confident that this is a **stolen** image. `+
-        `I found duplicate image(s) on **${totalMatchCount}** other site(s), `+
+        `I found the same image on **${totalMatchCount}** other site(s), `+
         `but I could not verify if the author is the same. I recommend that OP `+
         `provides proof that they are the author.`;
 
     const possibleOcCommentStrPlural = `🚨 **Picture Police** 🚨\n\n` +
         `I am only **${maxScore}%** confident that this post contains `+
-        `**stolen** images. I found duplicate image(s) on **${totalMatchCount}** other site(s), `+
-        `but I could not verify if the author is the same. I recommend that OP `+
-        `provides proof that they are the author.`;
+        `**stolen** images. I found duplicate images on **${totalMatchCount}** `+
+        `other site(s), but I could not verify if the author is the same. I `+
+        `recommend that OP provides proof that they are the author.`;
 
     const stolenCommentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
         `I am **${maxScore}%** confident that this is a **stolen** image. ` +
-        `I found duplicate image(s) on **${totalMatchCount}** other site(s). ` +
+        `I found the same image on **${totalMatchCount}** other site(s). ` +
         `Here is an example of what I found:\n\n `+
         `${urlStr}${DISCLAIMER}\n\n---\n\n${MAIL_LINK}`;
 
@@ -238,7 +214,7 @@ export async function comment(
         `${urlStr}${DISCLAIMER}\n\n---\n\n${MAIL_LINK}`;
 
     const isOc = maxScore <= 0;
-    const possibleOc = !isOc && maxScore < 50;
+    const possibleOc = !isOc && maxScore < MIN_CONF;
     const probablyStolen = !possibleOc && maxScore <= 100;
     const isSingular = numUserImages === 1;
     const isPlural = numUserImages > 1;
@@ -327,7 +303,7 @@ export async function sendModMail(
             `**Author:** u/${authorName}\n\n`+
             `**Title:** ${title}\n\n`+
             `**Matches:** ${numMatches}\n\n`+
-            `**Score:** ${maxScore}\n\n`+
+            `**Score:** ${maxScore}%\n\n`+
             `${MAIL_LINK}`;
 
         const modMailId = await context.reddit.modMail.createModNotification({
@@ -393,7 +369,7 @@ export async function removePost(
     maxScore: number): Promise<void>
 {
     const removePost: boolean = await context.settings.get("REMOVE");
-    if (removePost && numMatches > 0 && maxScore > 50)
+    if (removePost && numMatches > 0 && maxScore >= MIN_CONF)
     {
         await context.reddit.remove(postId, false);
         log("LOG", "Removed post", postId);
@@ -409,35 +385,72 @@ export async function removePost(
  * maximum length, it will be truncated with ellipsis.
  * @param {string} permalink - A URL or reference for additional context
  * related to the log.
- *
+ * @param {string} backgroundColor - Sets the optional background color.
  * @return {void} This function does not return any value.
  */
-export function log(level: string, message: string, permalink: string): void
+export function log(
+    level: string,
+    message: string,
+    permalink: string,
+    backgroundColor?: string): void
 {
     const timestamp = new Date().toISOString();
     const MAX_LOG_LEN = 30;
 
-    const colors = {
+    const fgColors: { [key: string]: string } = {
         RESET: "\x1b[0m",
+        BLACK: "\x1b[30m",
         RED: "\x1b[31m",
+        GREEN: "\x1b[32m",
         YELLOW: "\x1b[33m",
         BLUE: "\x1b[34m",
+        MAGENTA: "\x1b[35m",
+        CYAN: "\x1b[36m",
         WHITE: "\x1b[37m"
     };
 
-    let colorCode = colors.WHITE;
+    const bgColors: { [key: string]: string } = {
+        BLACK: "\x1b[40m",
+        RED: "\x1b[41m",
+        GREEN: "\x1b[42m",
+        YELLOW: "\x1b[43m",
+        BLUE: "\x1b[44m",
+        MAGENTA: "\x1b[45m",
+        CYAN: "\x1b[46m",
+        WHITE: "\x1b[47m"
+    };
+
+    let colorCode = fgColors.WHITE;
     const upperLevel = level.toUpperCase();
     const paddedLevel = upperLevel.padEnd(5);
 
-    if (upperLevel === "ERROR") colorCode = colors.RED;
-    else if (upperLevel === "WARN") colorCode = colors.YELLOW;
-    else if (upperLevel === "DEBUG") colorCode = colors.BLUE;
+    if (upperLevel === "ERROR") colorCode = fgColors.RED;
+    else if (upperLevel === "WARN") colorCode = fgColors.YELLOW;
+    else if (upperLevel === "DEBUG") colorCode = fgColors.BLUE;
+    else if (upperLevel === "INFO") colorCode = fgColors.CYAN;
+
+    const selectedColor = colorCode; // prevents level text color from changing
+    let bgCode = "";
+
+    if (backgroundColor)
+    {
+        const bgKey = backgroundColor.toUpperCase();
+        if (bgKey in bgColors)
+        {
+            bgCode = bgColors[bgKey];
+            if (["YELLOW", "WHITE", "CYAN", "GREEN"].includes(bgKey))
+            {
+                colorCode = fgColors.BLACK;
+            }
+        }
+    }
 
     const paddedMsg = message.length > MAX_LOG_LEN
         ? message.substring(0, (MAX_LOG_LEN - 3)) + "..."
         : message.padEnd(MAX_LOG_LEN);
 
-    const coloredLevel = `${colorCode}${paddedLevel}${colors.RESET}`;
+    const coloredLevel = `${selectedColor}${paddedLevel}${fgColors.RESET}`;
+    const coloredMsg = `${bgCode}${colorCode}${paddedMsg}${fgColors.RESET}`;
 
-    console.log(`${timestamp} | ${coloredLevel} | ${paddedMsg} | ${permalink}`);
+    console.log(`${timestamp} | ${coloredLevel} | ${coloredMsg} | ${permalink}`);
 }

@@ -71,6 +71,14 @@ Once the app is installed on your subreddit, navigate to your **Mod Tools > Apps
 
 ## Changelog
 
+### Version 1.1.7
+* Fix an issue where no image URLs were detected in an image/gallery post
+* Add optional background color to log function
+* Remove hyphens and underscores from Reddit usernames when checking a URL for a username
+* Update Devvit version to 0.12.8
+* Add a percentage symbol to the mod mail confidence score
+* Remove the "u/" from the feedback hyperlink
+
 ### Version 1.1.6
 * Skip matches where OP's username appears in the URL
 * Improve comment clarity when less than 50% confident of a match

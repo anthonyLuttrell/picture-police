@@ -88,6 +88,9 @@ export class Match
                                           path.includes("comments") &&
                                           notQuery;
 
+                const isSubredditLink = host.endsWith("reddit.com") &&
+                                        path.includes("r");
+
                 const isExternal = !host.endsWith("reddit.com") &&
                                    !host.includes("redd.it") &&
                                    proto.includes("https");
@@ -118,13 +121,51 @@ export class Match
                     }
                 }
 
+                // First Priority: A full match to a clean Reddit permalink
+                // Second Priority: A full match to an external link.
+                // Third Priority: A full match to a direct Reddit image link.
+                // Fourth Priority: A partial match to a clean Reddit permalink.
+                // Fifth Priority: A partial match to an external link.
+                // Last Priority: A partial match to a direct Reddit image link.
                 if (hasFullMatch && (isRedditPermalink || isExternal))
                 {
                     this.matchList.push(urlToAdd);
                 }
+                else if (hasFullMatch && isSubredditLink)
+                {
+                    for (const fullMatch of page.fullMatchingImages)
+                    {
+                        const urlObj = new URL(fullMatch.url);
+                        if (urlObj.hostname.endsWith("redd.it") &&
+                            (urlObj.pathname.includes(".jpg") ||
+                            urlObj.pathname.includes(".png") ||
+                            urlObj.pathname.includes(".gif") ||
+                            urlObj.pathname.includes(".jpeg")))
+                        {   // we cannot verify the OP username on a direct
+                            // image link, so we will consider it a partial
+                            // match to ensure the confidence score is low
+                            tempPartialMatches.push(fullMatch.url);
+                        }
+                    }
+                }
                 else if (hasPartialMatch && (isRedditPermalink || isExternal))
                 {
                     tempPartialMatches.push(urlToAdd);
+                }
+                else if (hasPartialMatch && isSubredditLink)
+                {
+                    for (const partialMatch of page.partialMatchingImages)
+                    {
+                        const urlObj = new URL(partialMatch.url);
+                        if (urlObj.hostname.endsWith("redd.it") &&
+                            (urlObj.pathname.includes(".jpg") ||
+                            urlObj.pathname.includes(".png") ||
+                            urlObj.pathname.includes(".gif") ||
+                            urlObj.pathname.includes(".jpeg")))
+                        {
+                            tempPartialMatches.push(partialMatch.url);
+                        }
+                    }
                 }
             }
             catch (e)
@@ -139,6 +180,11 @@ export class Match
             this.matchList = tempPartialMatches;
             this.onlyPartialMatch = true;
             log("WARN", "Only partial matches found", "N/A");
+        }
+
+        for (const match of this.matchList)
+        {
+            console.debug(`Match URL: ${match}`);
         }
     }
 

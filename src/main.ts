@@ -167,7 +167,7 @@ Devvit.addTrigger({
         const totalMatchCount = getTotalMatchCount(opMatches);
         const maxScore = getMaxScore(opMatches);
 
-        await comment(
+        const matchingUrls = await comment(
             userImgUrls.length,
             totalMatchCount,
             opMatches,
@@ -183,7 +183,9 @@ Devvit.addTrigger({
             post.title,
             post.permalink,
             totalMatchCount,
-            maxScore
+            maxScore,
+            userImgUrls.length,
+            matchingUrls
         );
 
         await reportPost(context, post.id, totalMatchCount);

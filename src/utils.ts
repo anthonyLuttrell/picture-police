@@ -1,8 +1,9 @@
 import {RedditAPIClient} from "@devvit/public-api";
 import {Match} from "./Match.js";
 
+const URL_TOKEN = "[URL_TOKEN]";
 const MIN_CONF = 50; // a score BELOW this number is considered NOT confident
-const MAIL_LINK = "[Click here to submit feedback](https://www.reddit.com/message/compose/?to=96dpi&subject=Picture%20Police%20Feedback&message=Please%20describe%20the%20issue%20or%20feedback%20here:)";
+const MAIL_LINK = `[Click here to submit feedback](https://www.reddit.com/message/compose/?to=96dpi&subject=Picture%20Police%20Feedback&message=Regarding%20post:%20${URL_TOKEN})`;
 const DISCLAIMER = `**Note:** Click on external links at your own risk. This `+
     `bot does not guarantee the security of any external websites you visit.`;
 
@@ -252,7 +253,7 @@ export async function comment(
 
     const comment = await context.reddit.submitComment({
         id: postId,
-        text: commentStr
+        text: commentStr.replace(URL_TOKEN, postId)
     });
 
     if (comment)
@@ -301,16 +302,16 @@ export async function sendModMail(
     matchingUrls: Map<number, string>): Promise<void>
 {
     let urlStr = "";
-    matchingUrls.forEach((url, idx) =>
+    matchingUrls.forEach((matchUrl, idx) =>
     {
-        if (!url) return;
+        if (!matchUrl) return;
 
         if (numUserImages > 1)
         {
             urlStr += `Image [${idx}/${numUserImages}]: `;
         }
 
-        urlStr += `${url}\n\n`;
+        urlStr += `${matchUrl}\n\n`;
     });
 
     const sendModMail: boolean = await context.settings.get("MOD_MAIL");
@@ -327,7 +328,7 @@ export async function sendModMail(
             `**Matches:** ${numMatches}\n\n`+
             `**Score:** ${maxScore}%\n\n`+
             `**Example ${matchStr}:**\n\n${urlStr}\n\n---\n\n`+
-            `${MAIL_LINK}`;
+            `${MAIL_LINK.replace(URL_TOKEN, url)}`;
 
         const modMailId = await context.reddit.modMail.createModNotification({
             subject: "🚨 Picture Police Report 🚨",

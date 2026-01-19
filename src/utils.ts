@@ -1,8 +1,9 @@
 import {RedditAPIClient} from "@devvit/public-api";
 import {Match} from "./Match.js";
 
+const URL_TOKEN = "[URL_TOKEN]";
 const MIN_CONF = 50; // a score BELOW this number is considered NOT confident
-const MAIL_LINK = "[Click here to submit feedback](https://www.reddit.com/message/compose/?to=96dpi&subject=Picture%20Police%20Feedback&message=Please%20describe%20the%20issue%20or%20feedback%20here:)";
+const MAIL_LINK = `[Click here to submit feedback](https://www.reddit.com/message/compose/?to=96dpi&subject=Picture%20Police%20Feedback&message=Regarding%20post:%20${URL_TOKEN})`;
 const DISCLAIMER = `**Note:** Click on external links at your own risk. This `+
     `bot does not guarantee the security of any external websites you visit.`;
 
@@ -116,7 +117,7 @@ export function getMaxScore(sourceMatches: Match[] | [],): number
  * @param {string} postId - The unique identifier of the Reddit post to which
  * the comment should be submitted.
  * @param {string} authorName - The username of the author of this post.
- * @return {Promise<number>} A promise that resolves to the total number of
+ * @return {Promise<Map<number, string>>} A promise that resolves to the total number of
  * matches found.
  */
 export async function comment(
@@ -126,16 +127,10 @@ export async function comment(
     maxScore: number,
     context: any,
     postId: string,
-    authorName: string): Promise<number>
+    authorName: string): Promise<Map<number, string>>
 {
     const settings = await context.settings.getAll();
     const urlsToPrint = new Map<number, string>();
-
-    if ((totalMatchCount <= 0 && settings["LEAVE_COMMENT"]?.[0] === "matches")||
-        settings["LEAVE_COMMENT"]?.[0] === "never")
-    {
-        return totalMatchCount;
-    }
 
     for (const match of sourceMatches)
     {
@@ -178,6 +173,12 @@ export async function comment(
             hasExternalLinks = true;
         }
     });
+
+    if ((totalMatchCount <= 0 && settings["LEAVE_COMMENT"]?.[0] === "matches")||
+        settings["LEAVE_COMMENT"]?.[0] === "never")
+    {
+        return urlsToPrint;
+    }
 
     const ocCommentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
         `This image appears to be u/${authorName}'s original content. I could `+
@@ -252,7 +253,7 @@ export async function comment(
 
     const comment = await context.reddit.submitComment({
         id: postId,
-        text: commentStr
+        text: commentStr.replace(URL_TOKEN, postId)
     });
 
     if (comment)
@@ -268,7 +269,7 @@ export async function comment(
         log("ERROR", "Failed to comment on post", postId);
     }
 
-    return totalMatchCount;
+    return urlsToPrint;
 }
 
 /**
@@ -284,6 +285,9 @@ export async function comment(
  * @param {number} numMatches - The number of potential matches indicating
  * stolen content.
  * @param {number} maxScore - The highest similarity score among the matches.
+ * @param {number} numUserImages - The number of images the OP submitted.
+ * @param {Map<number, string>} matchingUrls - Key is the 1-based gallery index,
+ * and value is the URL to the matching image.
  * @return {Promise<void>} A promise that resolves when the moderator mail
  * notification is successfully sent or the function completes its execution.
  */
@@ -293,18 +297,38 @@ export async function sendModMail(
     title: string,
     url: string,
     numMatches: number,
-    maxScore: number): Promise<void>
+    maxScore: number,
+    numUserImages: number,
+    matchingUrls: Map<number, string>): Promise<void>
 {
+    let urlStr = "";
+    matchingUrls.forEach((matchUrl, idx) =>
+    {
+        if (!matchUrl) return;
+
+        if (numUserImages > 1)
+        {
+            urlStr += `Image [${idx}/${numUserImages}]: `;
+        }
+
+        urlStr += `${matchUrl}\n\n`;
+    });
+
     const sendModMail: boolean = await context.settings.get("MOD_MAIL");
     if (sendModMail && numMatches > 0)
     {
+        const matchStr = numMatches > 1 ? "matches" : "match";
+
         const msg = `######The following post has potential stolen content:\n\n`+
+            `**Note:** A score of 50% or lower indicates only partial matches `+
+            `were found and should be manually reviewed by a moderator.\n\n`+
             `**Post Link:** ${url}\n\n`+
             `**Author:** u/${authorName}\n\n`+
             `**Title:** ${title}\n\n`+
             `**Matches:** ${numMatches}\n\n`+
             `**Score:** ${maxScore}%\n\n`+
-            `${MAIL_LINK}`;
+            `**Example ${matchStr}:**\n\n${urlStr}\n\n---\n\n`+
+            `${MAIL_LINK.replace(URL_TOKEN, url)}`;
 
         const modMailId = await context.reddit.modMail.createModNotification({
             subject: "🚨 Picture Police Report 🚨",

@@ -55,8 +55,9 @@ export async function findMatchingUsernames(
 
         for (const url of match.matches)
         {
-            if ((url.includes("reddit.com") || url.includes("redd.it")) &&
-                url.includes("/comments/"))
+            const urlObj = new URL(url);
+            if (urlObj.hostname.endsWith("reddit.com") &&
+                urlObj.pathname.includes("comments"))
             {   // find reddit URLs only
                 const foundAuthor = await getOpFromUrl(url, context.reddit);
 
@@ -68,6 +69,11 @@ export async function findMatchingUsernames(
                 if (authorName === foundAuthor)
                 {
                     urlsToRemove.push(url);
+                }
+                else if (authorName !== "[deleted]" &&
+                         foundAuthor === "[deleted]")
+                {
+                    match.isDeleted = true;
                 }
             }
         }

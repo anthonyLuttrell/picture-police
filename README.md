@@ -4,6 +4,23 @@
 
 ---
 
+> [!IMPORTANT]
+> 
+> This tool will always be **free** for you to use. However, it currently uses 
+> my personal Google Cloud Vision API key for all requests. The first 1,000 
+> requests per month are free. Every block of 1,000 requests thereafter costs 
+> \$3.50 USD. For example, 5,000 requests in one month will cost \$14.00. 
+> Because of this, rate limits may apply in the future, if the monthly cost 
+> becomes unreasonable.
+> 
+> Please consider [donating](https://www.paypal.com/donate/?hosted_button_id=ML5CBAPTWNR5A) to cover API costs. Any rate limits applied 
+> will be adjusted upon donation. Be sure to mention your subreddit's name if
+> you choose to donate.
+> 
+> As of v1.1.8, there are no active rate limits for any installations.
+
+---
+
 ## Key Features
 
 * **Automatic Actions:** Unlike other similar tools, no mod interaction is required. Automatically scans every single post, only acts on images, and will take automatic actions based on your settings.
@@ -62,14 +79,17 @@ Once the app is installed on your subreddit, navigate to your **Mod Tools > Apps
 * **Keyword Hooks:** Allow moderators to specify keywords ("OC", "I Ate", "I Made", etc.) that must appear in the title or body to activate the bot.
 * **Social Link Comparison:** Compare the author's social links on their profile to those found on any external matches to better eliminate false-positives.
 
-> [!IMPORTANT]
-> This bot currently uses my personal Google Cloud Vision API key for all requests. Because of this, rate limits may apply.
-> 
-> Please consider [donating](https://www.paypal.com/donate/?hosted_button_id=ML5CBAPTWNR5A) to cover API costs. Any rate limits applied will be adjusted upon donation.
+
 
 ---
 
 ## Changelog
+
+### Version 1.1.8
+* Add example URLs to mod mail notifications
+* Include direct Reddit image links when finding a matching image
+* Lower confidence score if a matching post has "[deleted]" for the author name
+* Add the post ID or permalink to the feedback URL
 
 ### Version 1.1.7
 * Fix an issue where no image URLs were detected in an image/gallery post

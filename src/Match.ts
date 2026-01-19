@@ -12,6 +12,7 @@ export class Match
     private onlyPartialMatch: boolean = false;
     public readonly galleryIdx: number;
     public readonly numOriginalMatches: number = 0;
+    public isDeleted: boolean = false;
 
     constructor(matchingImagesObj: any, index: number, authorName: string)
     {
@@ -181,11 +182,6 @@ export class Match
             this.onlyPartialMatch = true;
             log("WARN", "Only partial matches found", "N/A");
         }
-
-        for (const match of this.matchList)
-        {
-            console.debug(`Match URL: ${match}`);
-        }
     }
 
     get numMatches()
@@ -223,6 +219,12 @@ export class Match
         if (this.onlyPartialMatch)
         {   // if we only found partial matches, we are less confident, so
             // reduce the score by half
+            score /= 2;
+        }
+
+        if (this.isDeleted)
+        {   // we found a reddit post with a matching image, but the original
+            // poster deleted their post so we can't verify the username
             score /= 2;
         }
 

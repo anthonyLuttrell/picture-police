@@ -12,6 +12,7 @@
     "http": {
       "enable": true,
       "domains": ["reddit.com", "redd.it", "vision.googleapis.com"]
-    }
+    },
+    "redis": true
   }
 }

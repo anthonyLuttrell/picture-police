@@ -108,6 +108,13 @@ Devvit.addTrigger({
 
         let userImgUrls: string[] | [] = [];
         const authorName: string = author.name;
+        const userIsWhitelisted = await context.redis.get(authorName);
+
+        if (userIsWhitelisted === "true")
+        {
+            log("INFO", "User is whitelisted, exiting", post.permalink);
+            return;
+        }
 
         if (post.isImage)
         {
@@ -202,6 +209,53 @@ Devvit.addTrigger({
         {
             log("LOG", "Potential stolen content", post.permalink, "YELLOW");
         }
+    }
+});
+
+Devvit.addMenuItem({
+    location: "post",
+    label: "Add OP to Whitelist",
+    forUserType: "moderator",
+    onPress: async (event, context) =>
+    {
+        const post = await context.reddit.getPostById(event.targetId);
+        const author = await post.getAuthor();
+        if (!author) return;
+
+        const key = author.username;
+        const isWhitelisted = await context.redis.get(key);
+
+        if (isWhitelisted === "true")
+        {
+            context.ui.showToast(`u/${key} is already whitelisted.`);
+            return;
+        }
+
+        await context.redis.set(key, "true");
+        const value = await context.redis.get(key);
+        if (!value)
+        {
+            context.ui.showToast(`u/${key} failed to whitelist.`);
+            log("ERROR", `Failed to whitelist u/${key}`, post.permalink);
+            return;
+        }
+
+        context.ui.showToast(`u/${key} added to whitelist.`);
+    }
+});
+
+Devvit.addMenuItem({
+    location: "post",
+    label: "Remove OP from Whitelist",
+    forUserType: "moderator",
+    onPress: async (event, context) =>
+    {
+        const post = await context.reddit.getPostById(event.targetId);
+        const author = await post.getAuthor();
+        if (!author) return;
+        const key = author.username;
+        await context.redis.del(key);
+        context.ui.showToast(`u/${key} removed from whitelist.`);
     }
 });
 

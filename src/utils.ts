@@ -117,8 +117,7 @@ export function getMaxScore(sourceMatches: Match[] | [],): number
  * @param {string} postId - The unique identifier of the Reddit post to which
  * the comment should be submitted.
  * @param {string} authorName - The username of the author of this post.
- * @return {Promise<Map<number, string>>} A promise that resolves to the total number of
- * matches found.
+ * @return {Promise<void>}
  */
 export async function comment(
     numUserImages: number,
@@ -127,57 +126,15 @@ export async function comment(
     maxScore: number,
     context: any,
     postId: string,
-    authorName: string): Promise<Map<number, string>>
+    authorName: string): Promise<void>
 {
     const settings = await context.settings.getAll();
-    const urlsToPrint = new Map<number, string>();
-
-    for (const match of sourceMatches)
-    {
-        for (const url of match.matches)
-        {
-            if (url.includes("reddit.com") || url.includes("redd.it"))
-            {   // try to find and use the first reddit URL
-                urlsToPrint.set(match.galleryIdx, url);
-            }
-        }
-
-        if (!urlsToPrint.has(match.galleryIdx))
-        {   // if there were no reddit URLs, just use the first match
-            urlsToPrint.set(match.galleryIdx, match.matches[0]);
-        }
-    }
-
-    // build a string for pretty-printing the reddit comment
-    let urlStr = "";
-    let hasExternalLinks = false;
-    urlsToPrint.forEach((url, idx) =>
-    {
-        if (!url)
-        {
-            return;
-        }
-
-        if (numUserImages > 1)
-        {
-            urlStr += `Image [${idx}/${numUserImages}]: `;
-        }
-
-        if (url.includes("redd.it") || url.includes("reddit.com"))
-        {
-            urlStr += `${url}\n\n`;
-        }
-        else
-        {   // "hide" external links by using the Markdown spoiler tag
-            urlStr += `>!${url}!<\n\n`;
-            hasExternalLinks = true;
-        }
-    });
+    const urlStr = getUrlExampleString(1, sourceMatches, numUserImages);
 
     if ((totalMatchCount <= 0 && settings["LEAVE_COMMENT"]?.[0] === "matches")||
         settings["LEAVE_COMMENT"]?.[0] === "never")
     {
-        return urlsToPrint;
+        return;
     }
 
     const ocCommentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
@@ -246,11 +203,6 @@ export async function comment(
         commentStr = stolenCommentStrPlural;
     }
 
-    if (!hasExternalLinks)
-    {
-        commentStr = commentStr.replace((DISCLAIMER + "\n\n"), "");
-    }
-
     const comment = await context.reddit.submitComment({
         id: postId,
         text: commentStr.replace(URL_TOKEN, postId)
@@ -268,8 +220,71 @@ export async function comment(
     {
         log("ERROR", "Failed to comment on post", postId);
     }
+}
 
-    return urlsToPrint;
+function getUrlExampleString(
+    numUrlsToPrint: number,
+    sourceMatches: Match[]|[],
+    numUserImages: number): string
+{
+    const urlsToPrint = new Map<number, string[]>();
+
+    for (const match of sourceMatches)
+    {
+        const urls = [];
+        for (const url of match.matches)
+        {
+            if (urls.length >= numUrlsToPrint) break;
+            const urlObj = new URL(url);
+            const isRedditPermalink = urlObj.hostname.endsWith("reddit.com") &&
+                                      urlObj.pathname.includes("comments");
+
+            if (isRedditPermalink)
+            {   // prefer Reddit links over external links
+                urls.push(url);
+            }
+        }
+
+        if (urls.length < numUrlsToPrint)
+        {   // if there were not enough Reddit URLs, fallback to external URLs
+            for (const url of match.matches)
+            {
+                if (urls.length >= numUrlsToPrint) break;
+                const urlObj = new URL(url);
+                const isRedditPermalink = urlObj.hostname.endsWith("reddit.com") &&
+                                          urlObj.pathname.includes("comments");
+
+                if (!isRedditPermalink)
+                {
+                    urls.push(url);
+                }
+            }
+        }
+
+        urlsToPrint.set(match.galleryIdx, urls);
+    }
+
+    // build a string for pretty-printing the Reddit message
+    let urlStr = "";
+    urlsToPrint.forEach((urlArr, idx) =>
+    {
+        if (urlArr.length === 0)
+        {
+            return;
+        }
+
+        if (numUserImages > 1)
+        {
+            urlStr += `**Image [${idx}/${numUserImages}]**\n\n`;
+        }
+
+        for (const url of urlArr)
+        {
+            urlStr += `* ${url}\n\n`;
+        }
+    });
+
+    return urlStr;
 }
 
 /**
@@ -284,10 +299,9 @@ export async function comment(
  * @param {string} url - The URL of the post being flagged.
  * @param {number} numMatches - The number of potential matches indicating
  * stolen content.
+ * @param sourceMatches
  * @param {number} maxScore - The highest similarity score among the matches.
  * @param {number} numUserImages - The number of images the OP submitted.
- * @param {Map<number, string>} matchingUrls - Key is the 1-based gallery index,
- * and value is the URL to the matching image.
  * @return {Promise<void>} A promise that resolves when the moderator mail
  * notification is successfully sent or the function completes its execution.
  */
@@ -297,25 +311,16 @@ export async function sendModMail(
     title: string,
     url: string,
     numMatches: number,
+    sourceMatches: Match[]|[],
     maxScore: number,
-    numUserImages: number,
-    matchingUrls: Map<number, string>): Promise<void>
+    numUserImages: number): Promise<void>
 {
-    let urlStr = "";
-    matchingUrls.forEach((matchUrl, idx) =>
-    {
-        if (!matchUrl) return;
+    const settings = await context.settings.getAll();
+    let urlStr: string = getUrlExampleString(
+        settings["NUM_URLS"], sourceMatches, numUserImages
+    );
 
-        if (numUserImages > 1)
-        {
-            urlStr += `Image [${idx}/${numUserImages}]: `;
-        }
-
-        urlStr += `${matchUrl}\n\n`;
-    });
-
-    const sendModMail: boolean = await context.settings.get("MOD_MAIL");
-    if (sendModMail && numMatches > 0)
+    if (settings["MOD_MAIL"] && numMatches > 0)
     {
         const matchStr = numMatches > 1 ? "matches" : "match";
 

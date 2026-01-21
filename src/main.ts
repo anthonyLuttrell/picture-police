@@ -1,7 +1,6 @@
 import {Devvit, SettingScope} from "@devvit/public-api";
 import {comment, getTotalMatchCount, getMaxScore, sendModMail, reportPost, removePost, log} from "./utils.js";
 import {reverseImageSearch, findMatchingUsernames} from "./scan.js";
-// import {validateApiKey} from "./validation.js";
 
 Devvit.addSettings([
     {
@@ -66,6 +65,20 @@ Devvit.addSettings([
                 label: "Send mod mail",
                 defaultValue: true,
                 helpText: "Should the bot send a mod mail notification when a positive match is found?",
+            },
+            {
+                type: "number",
+                name: "NUM_URLS",
+                label: "Max matches",
+                defaultValue: 1,
+                helpText: "The maximum number of URLs of matching images to list in mod mail notifications (max of 20).",
+                onValidate: async ({value}) =>
+                {
+                    if (!value || (value < 1 || value > 20))
+                    {
+                        return "Value must be between 1 and 20 (inclusive).";
+                    }
+                }
             },
             {
                 type: "boolean",
@@ -174,7 +187,7 @@ Devvit.addTrigger({
         const totalMatchCount = getTotalMatchCount(opMatches);
         const maxScore = getMaxScore(opMatches);
 
-        const matchingUrls = await comment(
+        await comment(
             userImgUrls.length,
             totalMatchCount,
             opMatches,
@@ -190,9 +203,9 @@ Devvit.addTrigger({
             post.title,
             post.permalink,
             totalMatchCount,
+            opMatches,
             maxScore,
-            userImgUrls.length,
-            matchingUrls
+            userImgUrls.length
         );
 
         await reportPost(context, post.id, totalMatchCount);

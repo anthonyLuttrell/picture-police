@@ -42,16 +42,20 @@
 
 ## Installation & Setup
 
-Once the app is installed on your subreddit, navigate to your **Mod Tools > Apps > Picture Police** and configure the following:
+Once the app is installed on your subreddit, navigate to your **Mod Tools > Installed Apps > Picture Police** and configure the following:
 
-| Setting                | Description                                                    | Default | Recommended       |
-|:-----------------------|:---------------------------------------------------------------|:--------|-------------------|
-| **Enable Logs**        | Enable "Read logs and install history" to allow log access.    | Off     | On                |
-| **Leave a Comment**    | Choose to comment: `Never`, `Always`, or `Only on matches`.    | `Never` | `Only on matches` |
-| **Distinguish/Sticky** | Automatically labels and pins the bot's comment.               | On      | On                |
-| **Send Mod Mail**      | Notifies the mod team when a positive match is found.          | On      | On                |
-| **Report Submission**  | Flags the post for manual review in the mod queue.             | Off     | Off               |
-| **Remove Submission**  | Automatically removes posts found to be stolen content.        | Off     | Off               |
+| Setting                | Description                                                   | Default | Recommended       |
+|:-----------------------|:--------------------------------------------------------------|:--------|-------------------|
+| **Enable Logs**        | Enable "Read logs and install history" to allow log access.   | Off     | On                |
+| **Leave a Comment**    | Choose to comment: `Never`, `Always`, or `Only on matches`.   | `Never` | `Only on matches` |
+| **Distinguish/Sticky** | Automatically labels and pins the bot's comment.              | On      | On                |
+| **Send Mod Mail**      | Notifies the mod team when a positive match is found.         | On      | On                |
+| **Max Matches**        | Maximum number of URLs to show in mod mail notifications.     | 1       | 1                 |
+| **Report Submission**  | Flags the post for manual review in the mod queue.            | Off     | Off               |
+| **Remove Submission**  | Automatically removes posts found to be stolen content.       | Off     | Off               |
+| **Action Summary**     | Enable action summaries to be sent daily, weekly, or monthly. | Off     | On/Daily          |
+
+Settings can always be found here: `https://developers.reddit.com/r/<your-subreddit>/apps/picture-police`
 
 ---
 
@@ -84,6 +88,11 @@ Once the app is installed on your subreddit, navigate to your **Mod Tools > Apps
 ---
 
 ## Changelog
+
+### Version 1.2.0
+* Add a new mod option to add and remove a user from a whitelist. All submissions from a whitelisted user will be ignored.
+* Add a new installation setting to allow mods to set the maximum number of source URLs to include in mod mail notifications. There is a hard cap of 20 matches per user-submitted image.
+* Add a new installation setting to allow daily, weekly, or monthly action summaries, which includes the number of all image posts that were scanned, and the total number of potential stolen images found. 
 
 ### Version 1.1.8
 * Add example URLs to mod mail notifications

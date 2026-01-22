@@ -1,8 +1,12 @@
 import {RedditAPIClient} from "@devvit/public-api";
 import {Match} from "./Match.js";
 
+export const POTENTIAL_MATCH_KEY = "stats:daily_potential_matches";
+export const PROBABLE_MATCH_KEY = "stats:daily_probable_match";
+export const SCAN_KEY = "stats:daily_scans";
+export const MIN_CONF = 50; // a score BELOW this number is considered NOT confident
+
 const URL_TOKEN = "[URL_TOKEN]";
-const MIN_CONF = 50; // a score BELOW this number is considered NOT confident
 const MAIL_LINK = `[Click here to submit feedback](https://www.reddit.com/message/compose/?to=96dpi&subject=Picture%20Police%20Feedback&message=Regarding%20post:%20${URL_TOKEN})`;
 const DISCLAIMER = `**Note:** Click on external links at your own risk. This `+
     `bot does not guarantee the security of any external websites you visit.`;
@@ -117,8 +121,7 @@ export function getMaxScore(sourceMatches: Match[] | [],): number
  * @param {string} postId - The unique identifier of the Reddit post to which
  * the comment should be submitted.
  * @param {string} authorName - The username of the author of this post.
- * @return {Promise<Map<number, string>>} A promise that resolves to the total number of
- * matches found.
+ * @return {Promise<void>}
  */
 export async function comment(
     numUserImages: number,
@@ -127,57 +130,15 @@ export async function comment(
     maxScore: number,
     context: any,
     postId: string,
-    authorName: string): Promise<Map<number, string>>
+    authorName: string): Promise<void>
 {
     const settings = await context.settings.getAll();
-    const urlsToPrint = new Map<number, string>();
-
-    for (const match of sourceMatches)
-    {
-        for (const url of match.matches)
-        {
-            if (url.includes("reddit.com") || url.includes("redd.it"))
-            {   // try to find and use the first reddit URL
-                urlsToPrint.set(match.galleryIdx, url);
-            }
-        }
-
-        if (!urlsToPrint.has(match.galleryIdx))
-        {   // if there were no reddit URLs, just use the first match
-            urlsToPrint.set(match.galleryIdx, match.matches[0]);
-        }
-    }
-
-    // build a string for pretty-printing the reddit comment
-    let urlStr = "";
-    let hasExternalLinks = false;
-    urlsToPrint.forEach((url, idx) =>
-    {
-        if (!url)
-        {
-            return;
-        }
-
-        if (numUserImages > 1)
-        {
-            urlStr += `Image [${idx}/${numUserImages}]: `;
-        }
-
-        if (url.includes("redd.it") || url.includes("reddit.com"))
-        {
-            urlStr += `${url}\n\n`;
-        }
-        else
-        {   // "hide" external links by using the Markdown spoiler tag
-            urlStr += `>!${url}!<\n\n`;
-            hasExternalLinks = true;
-        }
-    });
+    const urlStr = getUrlExampleString(1, sourceMatches, numUserImages);
 
     if ((totalMatchCount <= 0 && settings["LEAVE_COMMENT"]?.[0] === "matches")||
         settings["LEAVE_COMMENT"]?.[0] === "never")
     {
-        return urlsToPrint;
+        return;
     }
 
     const ocCommentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
@@ -246,11 +207,6 @@ export async function comment(
         commentStr = stolenCommentStrPlural;
     }
 
-    if (!hasExternalLinks)
-    {
-        commentStr = commentStr.replace((DISCLAIMER + "\n\n"), "");
-    }
-
     const comment = await context.reddit.submitComment({
         id: postId,
         text: commentStr.replace(URL_TOKEN, postId)
@@ -268,8 +224,71 @@ export async function comment(
     {
         log("ERROR", "Failed to comment on post", postId);
     }
+}
 
-    return urlsToPrint;
+function getUrlExampleString(
+    numUrlsToPrint: number,
+    sourceMatches: Match[]|[],
+    numUserImages: number): string
+{
+    const urlsToPrint = new Map<number, string[]>();
+
+    for (const match of sourceMatches)
+    {
+        const urls = [];
+        for (const url of match.matches)
+        {
+            if (urls.length >= numUrlsToPrint) break;
+            const urlObj = new URL(url);
+            const isRedditPermalink = urlObj.hostname.endsWith("reddit.com") &&
+                                      urlObj.pathname.includes("comments");
+
+            if (isRedditPermalink)
+            {   // prefer Reddit links over external links
+                urls.push(url);
+            }
+        }
+
+        if (urls.length < numUrlsToPrint)
+        {   // if there were not enough Reddit URLs, fallback to external URLs
+            for (const url of match.matches)
+            {
+                if (urls.length >= numUrlsToPrint) break;
+                const urlObj = new URL(url);
+                const isRedditPermalink = urlObj.hostname.endsWith("reddit.com") &&
+                                          urlObj.pathname.includes("comments");
+
+                if (!isRedditPermalink)
+                {
+                    urls.push(url);
+                }
+            }
+        }
+
+        urlsToPrint.set(match.galleryIdx, urls);
+    }
+
+    // build a string for pretty-printing the Reddit message
+    let urlStr = "";
+    urlsToPrint.forEach((urlArr, idx) =>
+    {
+        if (urlArr.length === 0)
+        {
+            return;
+        }
+
+        if (numUserImages > 1)
+        {
+            urlStr += `**Image [${idx}/${numUserImages}]**\n\n`;
+        }
+
+        for (const url of urlArr)
+        {
+            urlStr += `* ${url}\n\n`;
+        }
+    });
+
+    return urlStr;
 }
 
 /**
@@ -284,10 +303,9 @@ export async function comment(
  * @param {string} url - The URL of the post being flagged.
  * @param {number} numMatches - The number of potential matches indicating
  * stolen content.
+ * @param sourceMatches
  * @param {number} maxScore - The highest similarity score among the matches.
  * @param {number} numUserImages - The number of images the OP submitted.
- * @param {Map<number, string>} matchingUrls - Key is the 1-based gallery index,
- * and value is the URL to the matching image.
  * @return {Promise<void>} A promise that resolves when the moderator mail
  * notification is successfully sent or the function completes its execution.
  */
@@ -297,25 +315,16 @@ export async function sendModMail(
     title: string,
     url: string,
     numMatches: number,
+    sourceMatches: Match[]|[],
     maxScore: number,
-    numUserImages: number,
-    matchingUrls: Map<number, string>): Promise<void>
+    numUserImages: number): Promise<void>
 {
-    let urlStr = "";
-    matchingUrls.forEach((matchUrl, idx) =>
-    {
-        if (!matchUrl) return;
+    const settings = await context.settings.getAll();
+    let urlStr: string = getUrlExampleString(
+        settings["NUM_URLS"], sourceMatches, numUserImages
+    );
 
-        if (numUserImages > 1)
-        {
-            urlStr += `Image [${idx}/${numUserImages}]: `;
-        }
-
-        urlStr += `${matchUrl}\n\n`;
-    });
-
-    const sendModMail: boolean = await context.settings.get("MOD_MAIL");
-    if (sendModMail && numMatches > 0)
+    if (settings["MOD_MAIL"] && numMatches > 0)
     {
         const matchStr = numMatches > 1 ? "matches" : "match";
 
@@ -334,7 +343,7 @@ export async function sendModMail(
             subject: "🚨 Picture Police Report 🚨",
             bodyMarkdown: msg,
             subredditId: context.subredditId
-        })
+        });
 
         if (modMailId)
         {
@@ -398,6 +407,93 @@ export async function removePost(
         await context.reddit.remove(postId, false);
         log("LOG", "Removed post", postId);
     }
+}
+
+/**
+ * Sends an action summary to the moderators via mod mail based on the given
+ * frequency. Calculates metrics for scans, potential matches, probable
+ * matches, and the original content (OC) rate. Also resets the stored metrics
+ * after sending the summary.
+ *
+ * @param {object} context - The execution context containing redis and reddit
+ *                           API clients, as well as the subreddit ID.
+ * @param {string} frequency - The frequency of the report. Supported values
+ *                             are "daily", "weekly", and "monthly".
+ * @return {Promise<void>} A promise that resolves when the action summary has
+ *                         been successfully sent or an error has occurred.
+ */
+export async function sendActionSummary(
+    context: any,
+    frequency: string): Promise<void>
+{
+    const [scanStr, potentialStr, probableStr] = await Promise.all([
+        context.redis.get(SCAN_KEY),
+        context.redis.get(POTENTIAL_MATCH_KEY),
+        context.redis.get(PROBABLE_MATCH_KEY)
+    ]);
+
+    const totalScans = parseInt(scanStr || '0', 10);
+    const potential = parseInt(potentialStr || '0', 10);
+    const probable = parseInt(probableStr || '0', 10);
+
+    if (
+        Number.isNaN(totalScans) ||
+        Number.isNaN(potential) ||
+        Number.isNaN(probable))
+    {
+        log("ERROR", "Invalid Redis value(s)", "N/A");
+        await Promise.all([
+            context.redis.del(SCAN_KEY),
+            context.redis.del(POTENTIAL_MATCH_KEY),
+            context.redis.del(PROBABLE_MATCH_KEY)
+        ]);
+        return;
+    }
+
+    const totalOc = totalScans - potential - probable;
+    const ocRate = totalScans > 0
+        ? ((totalOc / totalScans) * 100).toFixed(1)
+        : "0.0";
+
+    const config: Record<string, { label: string; range: string }> = {
+        daily:   { label: "Daily",   range: "24 hours" },
+        weekly:  { label: "Weekly",  range: "7 days" },
+        monthly: { label: "Monthly", range: "month" },
+    };
+
+    const { label, range } = config[frequency] || { label: frequency, range: frequency };
+
+    const summaryMarkdown = `
+###### Here is the action summary for the last ${range}.
+
+| Metric | Count |
+| :--- | :--- |
+| **Total Scans** | ${totalScans} |
+| **Potential Matches** | ${potential} |
+| **Probable Matches** | ${probable} |
+
+> **OC Rate:** ${ocRate}% of submissions were original content.
+`;
+
+    try
+    {
+        await context.reddit.modMail.createModNotification({
+            subject: `🛡️ Picture Police ${label} Action Summary 🛡️`,
+            bodyMarkdown: summaryMarkdown.trim(),
+            subredditId: context.subredditId
+        });
+        log("INFO", `Sent ${frequency} action summary`, "N/A");
+    }
+    catch (e)
+    {
+        log("ERROR", `Failed to send ${frequency} action summary`, "N/A");
+    }
+
+    await Promise.all([
+        context.redis.del(SCAN_KEY),
+        context.redis.del(POTENTIAL_MATCH_KEY),
+        context.redis.del(PROBABLE_MATCH_KEY)
+    ]);
 }
 
 /**

@@ -1,6 +1,19 @@
 import {Devvit, SettingScope} from "@devvit/public-api";
-import {comment, getTotalMatchCount, getMaxScore, sendModMail, reportPost, removePost, log} from "./utils.js";
 import {reverseImageSearch, findMatchingUsernames} from "./scan.js";
+import {
+    SCAN_KEY,
+    POTENTIAL_MATCH_KEY,
+    PROBABLE_MATCH_KEY,
+    MIN_CONF,
+    comment,
+    getTotalMatchCount,
+    getMaxScore,
+    sendModMail,
+    reportPost,
+    removePost,
+    sendActionSummary,
+    log
+} from "./utils.js";
 
 Devvit.addSettings([
     {
@@ -95,8 +108,50 @@ Devvit.addSettings([
                 helpText: "Should the bot remove the submission when a positive match is found? Note: enable both Report and Remove to mimic the automod's \"filter\" action.",
             }
         ]
+    },
+    {
+        type: 'group',
+        label: 'Action Summary Settings',
+        helpText: "Enable daily, weekly, or monthly action summaries.",
+        fields: [
+            {
+                type: "boolean",
+                name: "ACTION_SUMMARY_ENABLE",
+                label: "Enable action summaries",
+                defaultValue: false,
+                helpText: "Receive a mod mail notification with the number of posts containing stolen images.",
+            },
+            {
+                type: "select",
+                name: "ACTION_SUMMARY_FREQUENCY",
+                label: "Frequency of action summary notifications",
+                helpText: "Choose how frequent you want to receive these notifications.",
+                defaultValue: ["daily"],
+                options: [
+                    {
+                        label: "Daily",
+                        value: "daily"
+                    },
+                    {
+                        label: "Weekly",
+                        value: "weekly"
+                    },
+                    {
+                        label: "Monthly",
+                        value: "monthly"
+                    }
+                ],
+                onValidate: async ({value}) =>
+                {
+                    if (!value || value.length === 0)
+                    {
+                        return "You must select either \"daily\", \"weekly\", or \"monthly\".";
+                    }
+                }
+            }
+        ]
     }
-])
+]);
 
 Devvit.addTrigger({
     event: "PostCreate",
@@ -221,13 +276,24 @@ Devvit.addTrigger({
         else
         {
             log("LOG", "Potential stolen content", post.permalink, "YELLOW");
+            if (maxScore < MIN_CONF)
+            {   // 1%–49% confidence score
+                await context.redis.incrBy(POTENTIAL_MATCH_KEY, 1);
+            }
+            else
+            {   // 50%–100% confidence score
+                await context.redis.incrBy(PROBABLE_MATCH_KEY, 1);
+            }
         }
+
+        await context.redis.incrBy(SCAN_KEY, 1);
     }
 });
 
 Devvit.addMenuItem({
     location: "post",
     label: "Add OP to Whitelist",
+    description: "Picture Police",
     forUserType: "moderator",
     onPress: async (event, context) =>
     {
@@ -260,6 +326,7 @@ Devvit.addMenuItem({
 Devvit.addMenuItem({
     location: "post",
     label: "Remove OP from Whitelist",
+    description: "Picture Police",
     forUserType: "moderator",
     onPress: async (event, context) =>
     {
@@ -270,6 +337,57 @@ Devvit.addMenuItem({
         await context.redis.del(key);
         context.ui.showToast(`u/${key} removed from whitelist.`);
     }
+});
+
+Devvit.addTrigger({
+    events: ['AppInstall', 'AppUpgrade'],
+    onEvent: async (_, context) =>
+    {
+        // clear out all the jobs first to ensure there is only ever this one
+        const jobs = await context.scheduler.listJobs();
+        await Promise.all(jobs.map(job => context.scheduler.cancelJob(job.id)));
+
+        await context.scheduler.runJob({
+            name: 'daily_action_summary',
+            cron: '0 0 * * *',
+        });
+    },
+});
+
+Devvit.addSchedulerJob({
+    name: 'daily_action_summary',
+    onRun: async (_, context) =>
+    {
+        const settings = await context.settings.getAll();
+        const enable = settings["ACTION_SUMMARY_ENABLE"];
+        const freq = settings["ACTION_SUMMARY_FREQUENCY"];
+
+        if (!enable) return;
+
+        const now = new Date();
+        const dayOfWeek = now.getUTCDay();
+        const dayOfMonth = now.getUTCDate();
+
+        let runNow = false;
+
+        if (freq === 'daily')
+        {
+            runNow = true;
+        }
+        else if (freq === 'weekly' && dayOfWeek === 1)
+        {
+            runNow = true;
+        }
+        else if (freq === 'monthly' && dayOfMonth === 1)
+        {
+            runNow = true;
+        }
+
+        if (runNow && typeof freq === "string")
+        {
+            await sendActionSummary(context, freq);
+        }
+    },
 });
 
 export default Devvit;

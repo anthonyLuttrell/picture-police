@@ -1,8 +1,12 @@
 import {RedditAPIClient} from "@devvit/public-api";
 import {Match} from "./Match.js";
 
+export const POTENTIAL_MATCH_KEY = "stats:daily_potential_matches";
+export const PROBABLE_MATCH_KEY = "stats:daily_probable_match";
+export const SCAN_KEY = "stats:daily_scans";
+export const MIN_CONF = 50; // a score BELOW this number is considered NOT confident
+
 const URL_TOKEN = "[URL_TOKEN]";
-const MIN_CONF = 50; // a score BELOW this number is considered NOT confident
 const MAIL_LINK = `[Click here to submit feedback](https://www.reddit.com/message/compose/?to=96dpi&subject=Picture%20Police%20Feedback&message=Regarding%20post:%20${URL_TOKEN})`;
 const DISCLAIMER = `**Note:** Click on external links at your own risk. This `+
     `bot does not guarantee the security of any external websites you visit.`;
@@ -339,7 +343,7 @@ export async function sendModMail(
             subject: "🚨 Picture Police Report 🚨",
             bodyMarkdown: msg,
             subredditId: context.subredditId
-        })
+        });
 
         if (modMailId)
         {
@@ -403,6 +407,93 @@ export async function removePost(
         await context.reddit.remove(postId, false);
         log("LOG", "Removed post", postId);
     }
+}
+
+/**
+ * Sends an action summary to the moderators via mod mail based on the given
+ * frequency. Calculates metrics for scans, potential matches, probable
+ * matches, and the original content (OC) rate. Also resets the stored metrics
+ * after sending the summary.
+ *
+ * @param {object} context - The execution context containing redis and reddit
+ *                           API clients, as well as the subreddit ID.
+ * @param {string} frequency - The frequency of the report. Supported values
+ *                             are "daily", "weekly", and "monthly".
+ * @return {Promise<void>} A promise that resolves when the action summary has
+ *                         been successfully sent or an error has occurred.
+ */
+export async function sendActionSummary(
+    context: any,
+    frequency: string): Promise<void>
+{
+    const [scanStr, potentialStr, probableStr] = await Promise.all([
+        context.redis.get(SCAN_KEY),
+        context.redis.get(POTENTIAL_MATCH_KEY),
+        context.redis.get(PROBABLE_MATCH_KEY)
+    ]);
+
+    const totalScans = parseInt(scanStr || '0', 10);
+    const potential = parseInt(potentialStr || '0', 10);
+    const probable = parseInt(probableStr || '0', 10);
+
+    if (
+        Number.isNaN(totalScans) ||
+        Number.isNaN(potential) ||
+        Number.isNaN(probable))
+    {
+        log("ERROR", "Invalid Redis value(s)", "N/A");
+        await Promise.all([
+            context.redis.del(SCAN_KEY),
+            context.redis.del(POTENTIAL_MATCH_KEY),
+            context.redis.del(PROBABLE_MATCH_KEY)
+        ]);
+        return;
+    }
+
+    const totalOc = totalScans - potential - probable;
+    const ocRate = totalScans > 0
+        ? ((totalOc / totalScans) * 100).toFixed(1)
+        : "0.0";
+
+    const config: Record<string, { label: string; range: string }> = {
+        daily:   { label: "Daily",   range: "24 hours" },
+        weekly:  { label: "Weekly",  range: "7 days" },
+        monthly: { label: "Monthly", range: "month" },
+    };
+
+    const { label, range } = config[frequency] || { label: frequency, range: frequency };
+
+    const summaryMarkdown = `
+###### Here is the action summary for the last ${range}.
+
+| Metric | Count |
+| :--- | :--- |
+| **Total Scans** | ${totalScans} |
+| **Potential Matches** | ${potential} |
+| **Probable Matches** | ${probable} |
+
+> **OC Rate:** ${ocRate}% of submissions were original content.
+`;
+
+    try
+    {
+        await context.reddit.modMail.createModNotification({
+            subject: `🛡️ Picture Police ${label} Action Summary 🛡️`,
+            bodyMarkdown: summaryMarkdown.trim(),
+            subredditId: context.subredditId
+        });
+        log("INFO", `Sent ${frequency} action summary`, "N/A");
+    }
+    catch (e)
+    {
+        log("ERROR", `Failed to send ${frequency} action summary`, "N/A");
+    }
+
+    await Promise.all([
+        context.redis.del(SCAN_KEY),
+        context.redis.del(POTENTIAL_MATCH_KEY),
+        context.redis.del(PROBABLE_MATCH_KEY)
+    ]);
 }
 
 /**

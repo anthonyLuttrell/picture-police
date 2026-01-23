@@ -26,7 +26,7 @@ const versionHeader = `### Version ${currentVersion}`;
 if (content.includes(versionHeader)) {
     // A: Header exists - append to it
     // We escape special regex characters to be safe
-    const escapeRegex = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapeRegex = (/** @type {string} */ string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(`(${escapeRegex(versionHeader)})`);
 
     content = content.replace(regex, `$1\n* ${commitMessage}`);

@@ -75,7 +75,7 @@ Settings can always be found here: `https://developers.reddit.com/r/<your-subred
 
 * **Language:** TypeScript
 * **Platform:** Devvit (Reddit Developer Platform)
-* **Open Source:** The project is [open-source](https://github.com/anthonyLuttrell/picture-police.git), licensed under the Apache 2.0 License. Contributions are welcome!
+* **Open Source:** The project is [open-source](https://github.com/ninetySixDPI/picture-police), licensed under the Apache 2.0 License. Contributions are welcome!
 
 ## Coming Soon
 
@@ -88,6 +88,12 @@ Settings can always be found here: `https://developers.reddit.com/r/<your-subred
 ---
 
 ## Changelog
+
+### Version 1.2.1
+* Fix an issue where the wrong Reddit URLs were being added to the match list.
+* Add a new installation setting to set a minimum confidence score at which mod actions will be completed.
+* Lower the confidence score by slightly more than half when only direct Reddit image links (previews) are found.
+* Prevent thumbnails from being considered a match. These are often unreliable.
 
 ### Version 1.2.0
 * Add a new mod option to add and remove a user from a whitelist. All submissions from a whitelisted user will be ignored.

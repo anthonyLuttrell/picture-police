@@ -324,7 +324,9 @@ export async function sendModMail(
         settings["NUM_URLS"], sourceMatches, numUserImages
     );
 
-    if (settings["MOD_MAIL"] && numMatches > 0)
+    if (settings["MOD_MAIL"] &&
+        numMatches > 0 &&
+        maxScore >= settings["CONFIDENCE_THRESHOLD"])
     {
         const matchStr = numMatches > 1 ? "matches" : "match";
 
@@ -364,16 +366,23 @@ export async function sendModMail(
  * @param {string} postId - The unique identifier of the post to be reported.
  * @param {number} numMatches - The number of matches found indicating
  *                               potential stolen content.
+ * @param {string} maxScore - The maximum confidence score among the matches.
  * @return {Promise<void>} A promise that resolves once the post reporting
  *                         operation is completed.
  */
 export async function reportPost(
     context: any,
     postId: string,
-    numMatches: number): Promise<void>
+    numMatches: number,
+    maxScore: number): Promise<void>
 {
-    const sendReport: boolean = await context.settings.get("REPORT");
-    if (sendReport && numMatches > 0)
+    const settings = await context.settings.getAll();
+    const sendReport: boolean = settings["REPORT"];
+    const minConfidence: number = settings["CONFIDENCE_THRESHOLD"];
+    const hasMatch: boolean = numMatches > 0;
+    const meetsMinConfidence: boolean = maxScore >= minConfidence;
+
+    if (sendReport && hasMatch && meetsMinConfidence)
     {
         const matchStr = numMatches > 1 ? "matches" : "match";
         await context.reddit.report({id: postId}, {
@@ -401,8 +410,13 @@ export async function removePost(
     numMatches: number,
     maxScore: number): Promise<void>
 {
-    const removePost: boolean = await context.settings.get("REMOVE");
-    if (removePost && numMatches > 0 && maxScore >= MIN_CONF)
+    const settings = await context.settings.getAll();
+    const removePost: boolean = settings["REMOVE"];
+    const minConfidence: number = settings["CONFIDENCE_THRESHOLD"];
+    const hasMatch: boolean = numMatches > 0;
+    const meetsMinConfidence: boolean = maxScore >= minConfidence;
+
+    if (removePost && hasMatch && meetsMinConfidence)
     {
         await context.reddit.remove(postId, false);
         log("LOG", "Removed post", postId);
@@ -494,6 +508,68 @@ export async function sendActionSummary(
         context.redis.del(POTENTIAL_MATCH_KEY),
         context.redis.del(PROBABLE_MATCH_KEY)
     ]);
+}
+
+/**
+ * Determines if the given URL is a direct link to a Reddit-hosted media file
+ * such as an image or a GIF.
+ *
+ * @param {string} url - The URL to be checked.
+ * @return {boolean} Returns true if the URL is a direct link to a Reddit-hosted
+ * media file (e.g., jpg, png, gif, jpeg), otherwise false.
+ */
+export function isDirectRedditImgUrl(url: string): boolean
+{
+    const urlObj = new URL(url);
+    return urlObj.hostname.endsWith("redd.it") &&
+           (urlObj.pathname.includes(".jpg") ||
+           urlObj.pathname.includes(".png") ||
+           urlObj.pathname.includes(".gif") ||
+           urlObj.pathname.includes(".jpeg"));
+}
+
+export function isRedditPermalink(url: string): boolean
+{
+    const urlObj = new URL(url);
+    return urlObj.hostname.endsWith("reddit.com") &&
+           urlObj.pathname.includes("comments");
+}
+
+/**
+ * Determines whether a given URL is associated with a Reddit asset, which
+ * includes resources hosted on domains such as "redditmedia.com" and
+ * "redditstatic.com". These are typically thumbnails, but can also be icons,
+ * emojis, and subreddit banners.
+ *
+ * @param {string} url - The URL to evaluate.
+ * @return {boolean} True if the URL is a Reddit asset, otherwise false.
+ */
+export function isRedditAsset(url: string): boolean
+{
+    const urlObj = new URL(url);
+    return urlObj.hostname.endsWith("redditmedia.com") ||
+           urlObj.hostname.endsWith("redditstatic.com");
+}
+
+function getTimeDifference(originalPostDate: string, matchingPostDate: string)
+{
+    const d1 = new Date(originalPostDate);
+    const d2 = new Date(matchingPostDate);
+
+    if (isNaN(d1.getTime()) || isNaN(d2.getTime()))
+    {
+        return null;
+    }
+
+    const diffMs = Math.abs(d1.getTime() - d2.getTime());
+
+    return {
+        totalMilliseconds: diffMs,
+        days: Math.floor(diffMs / (1000 * 60 * 60 * 24)),
+        hours: Math.floor((diffMs / (1000 * 60 * 60)) % 24),
+        minutes: Math.floor((diffMs / (1000 * 60)) % 60),
+        seconds: Math.floor((diffMs / 1000) % 60)
+    };
 }
 
 /**

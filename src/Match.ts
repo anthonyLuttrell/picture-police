@@ -1,4 +1,9 @@
-import {log} from "./utils.js";
+import {
+    log,
+    isDirectRedditImgUrl,
+    isRedditAsset,
+    isRedditPermalink
+} from "./utils.js";
 
 /**
  * Each Match object represents each "match" from the Web Detection result.
@@ -10,6 +15,7 @@ export class Match
     private matchList: string[] = [];
     private numCleanedMatches: number = 0;
     private onlyPartialMatch: boolean = false;
+    private onlyDirectImgUrl: boolean = false;
     public readonly galleryIdx: number;
     public readonly numOriginalMatches: number = 0;
     public isDeleted: boolean = false;
@@ -73,8 +79,12 @@ export class Match
                 continue;
             }
 
-            const hasFullMatch = page.fullMatchingImages !== undefined;
-            const hasPartialMatch = page.partialMatchingImages !== undefined;
+            const hasFullMatch: boolean = page.fullMatchingImages !== undefined;
+            const hasPartialMatch: boolean = page.partialMatchingImages !== undefined;
+            const hasDirectImgUrl: boolean = hasFullMatch &&
+                page.fullMatchingImages.some(
+                    (match: { url: string; }) => isDirectRedditImgUrl(match.url)
+                );
 
             try
             {
@@ -90,7 +100,8 @@ export class Match
                                           notQuery;
 
                 const isSubredditLink = host.endsWith("reddit.com") &&
-                                        path.includes("r");
+                                        path.includes("r") &&
+                                        !path.includes("comments");
 
                 const isExternal = !host.endsWith("reddit.com") &&
                                    !host.includes("redd.it") &&
@@ -122,26 +133,29 @@ export class Match
                     }
                 }
 
+                if (hasFullMatch && isExternal && hasDirectImgUrl)
+                {   // There are some "AI" websites that steal Reddit images to
+                    // use on their site. We want to skip these to avoid false
+                    // positives. Here is one example site I came across during
+                    // testing: https://ge.life/mmm-yum
+                    continue;
+                }
+
                 // First Priority: A full match to a clean Reddit permalink
                 // Second Priority: A full match to an external link.
                 // Third Priority: A full match to a direct Reddit image link.
                 // Fourth Priority: A partial match to a clean Reddit permalink.
                 // Fifth Priority: A partial match to an external link.
-                // Last Priority: A partial match to a direct Reddit image link.
+                // Final Priority: A partial match to a direct Reddit image link.
                 if (hasFullMatch && (isRedditPermalink || isExternal))
-                {
+                {   // handles 1st and 2nd priorities
                     this.matchList.push(urlToAdd);
                 }
                 else if (hasFullMatch && isSubredditLink)
-                {
+                {   // handles 3rd priority
                     for (const fullMatch of page.fullMatchingImages)
                     {
-                        const urlObj = new URL(fullMatch.url);
-                        if (urlObj.hostname.endsWith("redd.it") &&
-                            (urlObj.pathname.includes(".jpg") ||
-                            urlObj.pathname.includes(".png") ||
-                            urlObj.pathname.includes(".gif") ||
-                            urlObj.pathname.includes(".jpeg")))
+                        if (isDirectRedditImgUrl(fullMatch.url))
                         {   // we cannot verify the OP username on a direct
                             // image link, so we will consider it a partial
                             // match to ensure the confidence score is low
@@ -150,19 +164,24 @@ export class Match
                     }
                 }
                 else if (hasPartialMatch && (isRedditPermalink || isExternal))
-                {
-                    tempPartialMatches.push(urlToAdd);
+                {   // handles 4th and 5th priorities
+                    const onlyThumbnails = page.partialMatchingImages.every(
+                        (match: { url: string; }) => isRedditAsset(match.url)
+                    );
+
+                    if (!onlyThumbnails)
+                    {   // Ignore thumbnail-only matches to avoid "sidebar
+                        // noise." Google Vision occasionally attributes
+                        // sidebar/widget thumbnails to the page URL, causing
+                        // false positives.
+                        tempPartialMatches.push(urlToAdd);
+                    }
                 }
                 else if (hasPartialMatch && isSubredditLink)
-                {
+                {   // handles final priority
                     for (const partialMatch of page.partialMatchingImages)
                     {
-                        const urlObj = new URL(partialMatch.url);
-                        if (urlObj.hostname.endsWith("redd.it") &&
-                            (urlObj.pathname.includes(".jpg") ||
-                            urlObj.pathname.includes(".png") ||
-                            urlObj.pathname.includes(".gif") ||
-                            urlObj.pathname.includes(".jpeg")))
+                        if (isDirectRedditImgUrl(partialMatch.url))
                         {
                             tempPartialMatches.push(partialMatch.url);
                         }
@@ -181,6 +200,20 @@ export class Match
             this.matchList = tempPartialMatches;
             this.onlyPartialMatch = true;
             log("WARN", "Only partial matches found", "N/A");
+
+            const hasDirectImg: boolean = this.matchList.some(
+                url => isDirectRedditImgUrl(url)
+            );
+
+            const hasPermalink: boolean = this.matchList.some(
+                url => isRedditPermalink(url)
+            )
+
+            if (hasDirectImg && !hasPermalink)
+            {   // we want to be less confident when there are only direct image
+                // links and no permalinks
+                this.onlyDirectImgUrl = true;
+            }
         }
     }
 
@@ -216,10 +249,17 @@ export class Match
             ((1 - (matchDiff / this.numOriginalMatches)) * 100)
         );
 
+        // these are intentionally compounding
         if (this.onlyPartialMatch)
         {   // if we only found partial matches, we are less confident, so
             // reduce the score by half
             score /= 2;
+        }
+
+        if (this.onlyDirectImgUrl)
+        {   // if we only found direct image links, we are less confident, so
+            // reduce the score by slightly more than half
+            score /= 2.1;
         }
 
         if (this.isDeleted)
@@ -228,6 +268,6 @@ export class Match
             score /= 2;
         }
 
-        return score;
+        return Math.round(score);
     }
 }

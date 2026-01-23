@@ -73,6 +73,13 @@ Devvit.addSettings([
                 helpText: "If comments are enabled, should the bot sticky its comment to the top of the thread?",
             },
             {
+                type: "number",
+                name: "CONFIDENCE_THRESHOLD",
+                label: "Confidence threshold",
+                helpText: "A confidence score BELOW this number will not trigger any mod notifications or mod actions. Comments (if enabled) will still be made.",
+                defaultValue: 50
+            },
+            {
                 type: "boolean",
                 name: "MOD_MAIL",
                 label: "Send mod mail",
@@ -263,7 +270,7 @@ Devvit.addTrigger({
             userImgUrls.length
         );
 
-        await reportPost(context, post.id, totalMatchCount);
+        await reportPost(context, post.id, totalMatchCount, maxScore);
         await removePost(context, post.id, totalMatchCount, maxScore);
 
         log("LOG", `Confidence Score: ${maxScore}`, post.permalink);

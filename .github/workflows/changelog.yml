@@ -1,0 +1,52 @@
+name: Update Changelog
+
+on:
+  push:
+    branches:
+      - main
+    # prevent the action from running on the changelog update itself
+    paths-ignore:
+      - 'CHANGELOG.md'
+
+jobs:
+  update-changelog:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required to push changes back to repo
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get Commit Message
+        id: msg
+        run: |
+          # Get the last commit message, strictly one line
+          MSG=$(git log -1 --pretty=%s)
+          echo "message=$MSG" >> $GITHUB_OUTPUT
+
+      - name: Run Changelog Script
+        # We pass the commit message as an argument to the script
+        run: node scripts/update-changelog.js "${{ steps.msg.outputs.message }}"
+
+      - name: Commit and Push Changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Check if there are changes to commit
+          if [[ -n $(git status -s) ]]; then
+            git add CHANGELOG.md
+            # [skip ci] is vital here to stop infinite loops
+            git commit -m "chore: update changelog [skip ci]"
+            git push
+          else
+            echo "No changes to changelog."
+          fi

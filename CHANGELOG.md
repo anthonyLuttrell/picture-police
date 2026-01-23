@@ -1,5 +1,8 @@
 ## Changelog
 
+### Version 1.2.2
+* Merge pull request #27 from ninetySixDPI/dev
+
 ### Version 1.2.1
 * Fix an issue where the wrong Reddit URLs were being added to the match list.
 * Add a new installation setting to set a minimum confidence score at which mod actions will be completed.

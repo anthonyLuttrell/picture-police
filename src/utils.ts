@@ -450,8 +450,7 @@ export async function sendActionSummary(
     const potential = parseInt(potentialStr || '0', 10);
     const probable = parseInt(probableStr || '0', 10);
 
-    if (
-        Number.isNaN(totalScans) ||
+    if (Number.isNaN(totalScans) ||
         Number.isNaN(potential) ||
         Number.isNaN(probable))
     {
@@ -551,26 +550,26 @@ export function isRedditAsset(url: string): boolean
            urlObj.hostname.endsWith("redditstatic.com");
 }
 
-function getTimeDifference(originalPostDate: string, matchingPostDate: string)
-{
-    const d1 = new Date(originalPostDate);
-    const d2 = new Date(matchingPostDate);
-
-    if (isNaN(d1.getTime()) || isNaN(d2.getTime()))
-    {
-        return null;
-    }
-
-    const diffMs = Math.abs(d1.getTime() - d2.getTime());
-
-    return {
-        totalMilliseconds: diffMs,
-        days: Math.floor(diffMs / (1000 * 60 * 60 * 24)),
-        hours: Math.floor((diffMs / (1000 * 60 * 60)) % 24),
-        minutes: Math.floor((diffMs / (1000 * 60)) % 60),
-        seconds: Math.floor((diffMs / 1000) % 60)
-    };
-}
+// function getTimeDifference(originalPostDate: string, matchingPostDate: string)
+// {
+//     const d1 = new Date(originalPostDate);
+//     const d2 = new Date(matchingPostDate);
+//
+//     if (isNaN(d1.getTime()) || isNaN(d2.getTime()))
+//     {
+//         return null;
+//     }
+//
+//     const diffMs = Math.abs(d1.getTime() - d2.getTime());
+//
+//     return {
+//         totalMilliseconds: diffMs,
+//         days: Math.floor(diffMs / (1000 * 60 * 60 * 24)),
+//         hours: Math.floor((diffMs / (1000 * 60 * 60)) % 24),
+//         minutes: Math.floor((diffMs / (1000 * 60)) % 60),
+//         seconds: Math.floor((diffMs / 1000) % 60)
+//     };
+// }
 
 /**
  * Logs a message with a specified log level, timestamp, and permalink.

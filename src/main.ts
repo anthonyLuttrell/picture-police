@@ -1,3 +1,4 @@
+import {APP_CHANGELOG} from "./changelog";
 import {Devvit, SettingScope} from "@devvit/public-api";
 import {reverseImageSearch, findMatchingUsernames} from "./scan.js";
 import {

@@ -417,30 +417,16 @@ Devvit.addMenuItem({
     }
 });
 
-Devvit.addTrigger({
-    events: ['AppInstall', 'AppUpgrade'],
-    onEvent: async (_, context) =>
-    {
-        // clear out all the jobs first to ensure there is only ever this one
-        const jobs = await context.scheduler.listJobs();
-        await Promise.all(jobs.map(job => context.scheduler.cancelJob(job.id)));
-
-        await context.scheduler.runJob({
-            name: 'daily_action_summary',
-            cron: '0 0 * * *',
-        });
-    },
-});
-
 Devvit.addSchedulerJob({
     name: 'daily_action_summary',
     onRun: async (_, context) =>
     {
-        const settings = await context.settings.getAll();
-        const enable = settings["ACTION_SUMMARY_ENABLE"];
-        const freq = settings["ACTION_SUMMARY_FREQUENCY"];
+        const [enable, freq] = await Promise.all([
+            context.settings.get("ACTION_SUMMARY_ENABLE"),
+            context.settings.get<string[]>("ACTION_SUMMARY_FREQUENCY")
+        ]);
 
-        if (!enable) return;
+        if (!enable || !freq || freq[0] === "") return;
 
         const now = new Date();
         const dayOfWeek = now.getUTCDay();
@@ -448,23 +434,37 @@ Devvit.addSchedulerJob({
 
         let runNow = false;
 
-        if (freq === 'daily')
+        if (freq[0] === 'daily')
         {
             runNow = true;
         }
-        else if (freq === 'weekly' && dayOfWeek === 1)
+        else if (freq[0] === 'weekly' && dayOfWeek === 1)
         {
             runNow = true;
         }
-        else if (freq === 'monthly' && dayOfMonth === 1)
+        else if (freq[0] === 'monthly' && dayOfMonth === 1)
         {
             runNow = true;
         }
 
-        if (runNow && typeof freq === "string")
+        if (runNow && typeof freq[0] === 'string')
         {
-            await sendActionSummary(context, freq);
+            await sendActionSummary(context, freq[0]);
         }
+    },
+});
+
+Devvit.addTrigger({
+    events: ['AppInstall', 'AppUpgrade'],
+    onEvent: async (_, context) =>
+    {   // clear out all the jobs first to ensure there is only ever this one
+        const jobs = await context.scheduler.listJobs();
+        await Promise.all(jobs.map(job => context.scheduler.cancelJob(job.id)));
+
+        await context.scheduler.runJob({
+            name: 'daily_action_summary',
+            cron: '0 0 * * *',
+        });
     },
 });
 

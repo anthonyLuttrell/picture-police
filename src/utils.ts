@@ -486,6 +486,10 @@ export async function sendActionSummary(
 | **Probable Matches** | ${probable} |
 
 > **OC Rate:** ${ocRate}% of submissions were original content.
+
+---
+
+Manage these notifications in [your app settings](https://developers.reddit.com/r/${context.subredditName}/apps/picture-police).
 `;
 
     try

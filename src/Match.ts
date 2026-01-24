@@ -59,7 +59,7 @@ export class Match
         // of partial matches to add later if we don't find any full matches.
         const tempPartialMatches: string[] = [];
         const matchingPages = this.matchingImagesObj;
-        const fbGroupNames: string[] = [];
+        const fbLinks: string[] = [];
 
         // Reddit only allows underscore and hyphen in usernames
         let cleanedAuthName = this.authorName.replace(/-/g, "").toLowerCase();
@@ -119,17 +119,49 @@ export class Match
                     // Reddit posts are found with the same OP. We always assume
                     // a FB group post URL will be structured exactly like this:
                     // https://www.facebook.com/groups/<group_name>/posts/<post_id>/
-                    const pathSegments = path.split('/');
-                    urlObj.pathname = pathSegments.slice(0, 3).join('/');
-                    const fbGroupName = pathSegments[2];
-                    if (!fbGroupNames.includes(fbGroupName))
-                    {   // keep track of the group names to avoid duplicates
-                        fbGroupNames.push(fbGroupName);
-                        urlToAdd = urlObj.href;
+
+                    let fbUrlObj = null;
+                    for (const fullMatch of page.fullMatchingImages)
+                    {   // check for "lookaside" FB links, which are temporary
+                        // image caches used for serving images through a CDN
+                        const tempUrlObj = new URL(fullMatch.url);
+                        if (tempUrlObj.hostname.includes("lookaside.fbsbx.com"))
+                        {
+                            fbUrlObj = tempUrlObj;
+                            break;
+                        }
+                    }
+
+                    if (fbUrlObj !== null &&
+                        fbUrlObj.searchParams.has("media_id"))
+                    {   // "lookaside" links are temporary, but we can build a
+                        // permanent link from the media ID if we find one.
+                        const mediaId = fbUrlObj.searchParams.get("media_id");
+                        const fbPermalink = `https://www.facebook.com/photo.php?fbid=${mediaId}`;
+                        if (!fbLinks.includes(fbPermalink))
+                        {   // avoid duplicates
+                            fbLinks.push(fbPermalink);
+                            urlToAdd = fbPermalink;
+                        }
+                        else
+                        {
+                            continue;
+                        }
                     }
                     else
-                    {
-                        continue;
+                    {   // prefer "lookaside" links and fallback to group links
+                        const pathSegments = path.split('/');
+                        urlObj.pathname = pathSegments.slice(0, 3).join('/');
+                        const fbGroupLink = pathSegments[2];
+                        if (!fbLinks.includes(fbGroupLink))
+                        {   // avoid duplicates
+                            fbLinks.push(fbGroupLink);
+                            urlToAdd = urlObj.href;
+                        }
+                        else
+                        {
+                            continue;
+                        }
                     }
                 }
 

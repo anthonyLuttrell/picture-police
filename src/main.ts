@@ -34,6 +34,13 @@ Devvit.addSettings([
     //     onValidate: async ({value}) => {await validateApiKey(value)}
     // },
     {
+        type: 'boolean',
+        name: 'EXCLUDE_MODS',
+        label: 'Exclude mods',
+        defaultValue: true,
+        helpText: "If enabled, Picture Police will skip all posts from any moderator in your subreddit.",
+    },
+    {
         type: 'group',
         label: 'Notification Settings',
         helpText: "Set the default behavior for every submission.",
@@ -189,9 +196,27 @@ Devvit.addTrigger({
             return;
         }
 
+        const sub = await context.reddit.getCurrentSubreddit();
+        if (!sub)
+        {
+            log("ERROR", "Unable to get subreddit data", post.permalink);
+            return;
+        }
+
+        const modObjects = await sub.getModerators().all();
+        if (!modObjects)
+        {
+            log("ERROR", "Unable to get moderator data", post.permalink);
+            return;
+        }
+
         let userImgUrls: string[] | [] = [];
         const authorName: string = author.name;
-        const userIsWhitelisted = await context.redis.get(authorName);
+        const modNames = modObjects.map(mod => mod.username);
+        const isMod = modNames.includes(authorName);
+        let userIsWhitelisted = await context.redis.get(authorName);
+        const excludeMods = await context.settings.get('EXCLUDE_MODS');
+        userIsWhitelisted = excludeMods && isMod ? "true" : userIsWhitelisted;
 
         if (userIsWhitelisted === "true")
         {

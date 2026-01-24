@@ -39,6 +39,13 @@ Devvit.addSettings([
         helpText: "Set the default behavior for every submission.",
         fields: [
             {
+                type: "boolean",
+                name: "UPGRADE_NOTIFICATIONS",
+                label: "App upgrade notifications",
+                defaultValue: true,
+                helpText: "Receive a mod mail notification when a new version of Picture Police is available."
+            },
+            {
                 type: "select",
                 name: "LEAVE_COMMENT",
                 label: "Leave a comment",
@@ -296,6 +303,44 @@ Devvit.addTrigger({
 
         await context.redis.incrBy(SCAN_KEY, 1);
     }
+});
+
+Devvit.addTrigger({
+    event: "AppUpgrade",
+    onEvent: async (_, context) =>
+    {
+        const { reddit, settings, appVersion, subredditName } = context;
+        const isEnabled = await settings.get('UPGRADE_NOTIFICATIONS');
+        if (!isEnabled) return;
+
+        const notes = APP_CHANGELOG[appVersion] || ["General improvements and bug fixes."];
+        const formattedNotes = notes.map(note => `* ${note}`).join('\n');
+        const msg = `#####v${appVersion} is available to upgrade!\n\n`+
+            `###### Changes:\n${formattedNotes}\n\n`+
+            `[Upgrade your installation](https://developers.reddit.com/r/${subredditName}/apps)\n\n---\n\n`+
+            `Manage these notifications in [your app settings]`+
+            `(https://developers.reddit.com/r/${subredditName}/apps/picture-police).`;
+
+        const modMailId = await reddit.modMail.createModNotification({
+            subject: `⚠️ Picture Police Upgrade Available ⚠️`,
+            bodyMarkdown: msg,
+            subredditId: context.subredditId
+        });
+
+        if (modMailId)
+        {
+            log("LOG", "Sent upgrade notification", "N/A");
+        }
+        else
+        {
+            log("ERROR", "Failed to send upgrade notification", "N/A");
+            await reddit.sendPrivateMessage({
+                to: "96dpi",
+                subject: "Picture Police Error",
+                text: `Failed to send upgrade notification to ${subredditName}`
+            });
+        }
+    },
 });
 
 Devvit.addMenuItem({

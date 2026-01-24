@@ -169,11 +169,15 @@ export class Match
                         (match: { url: string; }) => isRedditAsset(match.url)
                     );
 
-                    if (!onlyThumbnails)
-                    {   // Ignore thumbnail-only matches to avoid "sidebar
-                        // noise." Google Vision occasionally attributes
-                        // sidebar/widget thumbnails to the page URL, causing
-                        // false positives.
+                    const onlyDirectLinks = page.partialMatchingImages.every(
+                        (match: { url: string; }) => isDirectRedditImgUrl(match.url)
+                    );
+
+                    if (!onlyThumbnails && !onlyDirectLinks)
+                    {   // Ignore thumbnail-only matches and direct-link-only
+                        // matches to avoid "sidebar noise." Google Vision
+                        // occasionally attributes sidebar/widget thumbnails to
+                        // the page URL, causing false positives.
                         tempPartialMatches.push(urlToAdd);
                     }
                 }

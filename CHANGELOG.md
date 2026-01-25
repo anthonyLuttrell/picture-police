@@ -1,7 +1,12 @@
 ## Changelog
 
 ### Version 1.3.0
-* Merge pull request #31 from ninetySixDPI/dev
+* Add a setting to send mod mail notifications when a new version of Picture Police is published
+* Add a setting to exclude mods from all Picture Police scans
+* Reduce false positives on partial matches when only direct Reddit image links are found
+* Change all external (non-Reddit) website links to direct-image links
+* Fix bug preventing action summaries from being sent
+* Change OP whitelist mod menu item to a toggle and add app name to label
 
 ### Version 1.2.2
 * Merge pull request #27 from ninetySixDPI/dev

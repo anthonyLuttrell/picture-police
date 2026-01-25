@@ -1,5 +1,8 @@
 ## Changelog
 
+### Version 1.3.0
+* Merge pull request #31 from ninetySixDPI/dev
+
 ### Version 1.2.2
 * Merge pull request #27 from ninetySixDPI/dev
 

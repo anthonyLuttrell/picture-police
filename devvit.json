@@ -3,7 +3,7 @@
   "name": "picture-police",
   "blocks": {
     "entry": "src/main.ts",
-    "triggers": ["onPostCreate"]
+    "triggers": ["onPostCreate", "onAppInstall", "onAppUpgrade"]
   },
   "permissions": {
     "reddit": {

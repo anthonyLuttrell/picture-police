@@ -1,3 +1,4 @@
+import {APP_CHANGELOG} from "./changelog";
 import {Devvit, SettingScope} from "@devvit/public-api";
 import {reverseImageSearch, findMatchingUsernames} from "./scan.js";
 import {
@@ -33,10 +34,24 @@ Devvit.addSettings([
     //     onValidate: async ({value}) => {await validateApiKey(value)}
     // },
     {
+        type: 'boolean',
+        name: 'EXCLUDE_MODS',
+        label: 'Exclude mods',
+        defaultValue: true,
+        helpText: "If enabled, Picture Police will skip all posts from any moderator in your subreddit.",
+    },
+    {
         type: 'group',
         label: 'Notification Settings',
         helpText: "Set the default behavior for every submission.",
         fields: [
+            {
+                type: "boolean",
+                name: "UPGRADE_NOTIFICATIONS",
+                label: "App upgrade notifications",
+                defaultValue: true,
+                helpText: "Receive a mod mail notification when a new version of Picture Police is available."
+            },
             {
                 type: "select",
                 name: "LEAVE_COMMENT",
@@ -181,9 +196,27 @@ Devvit.addTrigger({
             return;
         }
 
+        const sub = await context.reddit.getCurrentSubreddit();
+        if (!sub)
+        {
+            log("ERROR", "Unable to get subreddit data", post.permalink);
+            return;
+        }
+
+        const modObjects = await sub.getModerators().all();
+        if (!modObjects)
+        {
+            log("ERROR", "Unable to get moderator data", post.permalink);
+            return;
+        }
+
         let userImgUrls: string[] | [] = [];
         const authorName: string = author.name;
-        const userIsWhitelisted = await context.redis.get(authorName);
+        const modNames = modObjects.map(mod => mod.username);
+        const isMod = modNames.includes(authorName);
+        let userIsWhitelisted = await context.redis.get(authorName);
+        const excludeMods = await context.settings.get('EXCLUDE_MODS');
+        userIsWhitelisted = excludeMods && isMod ? "true" : userIsWhitelisted;
 
         if (userIsWhitelisted === "true")
         {
@@ -297,10 +330,48 @@ Devvit.addTrigger({
     }
 });
 
+Devvit.addTrigger({
+    event: "AppUpgrade",
+    onEvent: async (_, context) =>
+    {
+        const { reddit, settings, appVersion, subredditName } = context;
+        const isEnabled = await settings.get('UPGRADE_NOTIFICATIONS');
+        if (!isEnabled) return;
+
+        const notes = APP_CHANGELOG[appVersion] || ["General improvements and bug fixes."];
+        const formattedNotes = notes.map(note => `* ${note}`).join('\n');
+        const msg = `#####v${appVersion} is available to upgrade!\n\n`+
+            `###### Changes:\n${formattedNotes}\n\n`+
+            `[Upgrade your installation](https://developers.reddit.com/r/${subredditName}/apps)\n\n---\n\n`+
+            `Manage these notifications in [your app settings]`+
+            `(https://developers.reddit.com/r/${subredditName}/apps/picture-police).`;
+
+        const modMailId = await reddit.modMail.createModNotification({
+            subject: `⚠️ Picture Police Upgrade Available ⚠️`,
+            bodyMarkdown: msg,
+            subredditId: context.subredditId
+        });
+
+        if (modMailId)
+        {
+            log("LOG", "Sent upgrade notification", "N/A");
+        }
+        else
+        {
+            log("ERROR", "Failed to send upgrade notification", "N/A");
+            await reddit.sendPrivateMessage({
+                to: "96dpi",
+                subject: "Picture Police Error",
+                text: `Failed to send upgrade notification to ${subredditName}`
+            });
+        }
+    },
+});
+
 Devvit.addMenuItem({
     location: "post",
-    label: "Add OP to Whitelist",
-    description: "Picture Police",
+    label: "Toggle OP in Picture Police Whitelist",
+    description: "Skips all posts from OP in your subreddit",
     forUserType: "moderator",
     onPress: async (event, context) =>
     {
@@ -313,63 +384,36 @@ Devvit.addMenuItem({
 
         if (isWhitelisted === "true")
         {
-            context.ui.showToast(`u/${key} is already whitelisted.`);
-            return;
+            await context.redis.del(key);
+            context.ui.showToast(`u/${key} REMOVED from whitelist.`);
         }
-
-        await context.redis.set(key, "true");
-        const value = await context.redis.get(key);
-        if (!value)
+        else
         {
-            context.ui.showToast(`u/${key} failed to whitelist.`);
-            log("ERROR", `Failed to whitelist u/${key}`, post.permalink);
-            return;
+            await context.redis.set(key, "true");
+            const value = await context.redis.get(key);
+            if (!value)
+            {
+                context.ui.showToast(`u/${key} failed to whitelist.`);
+                log("ERROR", `Failed to whitelist u/${key}`, post.permalink);
+            }
+            else
+            {
+                context.ui.showToast(`u/${key} ADDED to whitelist.`);
+            }
         }
-
-        context.ui.showToast(`u/${key} added to whitelist.`);
     }
-});
-
-Devvit.addMenuItem({
-    location: "post",
-    label: "Remove OP from Whitelist",
-    description: "Picture Police",
-    forUserType: "moderator",
-    onPress: async (event, context) =>
-    {
-        const post = await context.reddit.getPostById(event.targetId);
-        const author = await post.getAuthor();
-        if (!author) return;
-        const key = author.username;
-        await context.redis.del(key);
-        context.ui.showToast(`u/${key} removed from whitelist.`);
-    }
-});
-
-Devvit.addTrigger({
-    events: ['AppInstall', 'AppUpgrade'],
-    onEvent: async (_, context) =>
-    {
-        // clear out all the jobs first to ensure there is only ever this one
-        const jobs = await context.scheduler.listJobs();
-        await Promise.all(jobs.map(job => context.scheduler.cancelJob(job.id)));
-
-        await context.scheduler.runJob({
-            name: 'daily_action_summary',
-            cron: '0 0 * * *',
-        });
-    },
 });
 
 Devvit.addSchedulerJob({
     name: 'daily_action_summary',
     onRun: async (_, context) =>
     {
-        const settings = await context.settings.getAll();
-        const enable = settings["ACTION_SUMMARY_ENABLE"];
-        const freq = settings["ACTION_SUMMARY_FREQUENCY"];
+        const [enable, freq] = await Promise.all([
+            context.settings.get("ACTION_SUMMARY_ENABLE"),
+            context.settings.get<string[]>("ACTION_SUMMARY_FREQUENCY")
+        ]);
 
-        if (!enable) return;
+        if (!enable || !freq || freq[0] === "") return;
 
         const now = new Date();
         const dayOfWeek = now.getUTCDay();
@@ -377,23 +421,37 @@ Devvit.addSchedulerJob({
 
         let runNow = false;
 
-        if (freq === 'daily')
+        if (freq[0] === 'daily')
         {
             runNow = true;
         }
-        else if (freq === 'weekly' && dayOfWeek === 1)
+        else if (freq[0] === 'weekly' && dayOfWeek === 1)
         {
             runNow = true;
         }
-        else if (freq === 'monthly' && dayOfMonth === 1)
+        else if (freq[0] === 'monthly' && dayOfMonth === 1)
         {
             runNow = true;
         }
 
-        if (runNow && typeof freq === "string")
+        if (runNow && typeof freq[0] === 'string')
         {
-            await sendActionSummary(context, freq);
+            await sendActionSummary(context, freq[0]);
         }
+    },
+});
+
+Devvit.addTrigger({
+    events: ['AppInstall', 'AppUpgrade'],
+    onEvent: async (_, context) =>
+    {   // clear out all the jobs first to ensure there is only ever this one
+        const jobs = await context.scheduler.listJobs();
+        await Promise.all(jobs.map(job => context.scheduler.cancelJob(job.id)));
+
+        await context.scheduler.runJob({
+            name: 'daily_action_summary',
+            cron: '0 0 * * *',
+        });
     },
 });
 

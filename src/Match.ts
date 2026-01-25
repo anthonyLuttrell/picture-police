@@ -12,7 +12,6 @@ export class Match
 {
     private readonly matchingImagesObj: any;
     private readonly authorName: string;
-    private fbLinks = new Set<string>();
     private matchList: string[] = [];
     private numCleanedMatches: number = 0;
     private onlyPartialMatch: boolean = false;
@@ -60,241 +59,195 @@ export class Match
         // of partial matches to add later if we don't find any full matches.
         const tempPartialMatches: string[] = [];
         const matchingPages = this.matchingImagesObj;
-
-        for (const match of matchingPages)
-        {
-            if (this.isAuthorInUrl(match.url)) continue;
-            const processedUrl = this.getNormalizedUrl(match);
-            if (!processedUrl) continue;
-            if (this.isScraperSite(match)) continue;
-            this.categorizeMatch(match, processedUrl, tempPartialMatches);
-        }
-
-        this.finalizeMatches(tempPartialMatches);
-    }
-
-    /**
-     * Checks if the author's name is present in the URL. Try to remove hyphens
-     * and underscores when checking as well.
-     */
-    private isAuthorInUrl(url: string): boolean
-    {
-        const lowerUrl = url.toLowerCase();
+        const fbLinks: string[] = [];
 
         // Reddit only allows underscore and hyphen in usernames
-        const cleanedAuthName = this.authorName.replace(
-            /[-_]/g, ""
-        ).toLowerCase();
+        let cleanedAuthName = this.authorName.replace(/-/g, "").toLowerCase();
+        cleanedAuthName = cleanedAuthName.replace(/_/g, "");
 
+        // Underscores are not recommended in URLs, so we will try with a hyphen
         const hyphenAuthName = this.authorName.replace(/_/g, "-").toLowerCase();
 
-        return lowerUrl.includes(this.authorName) ||
-               lowerUrl.includes(cleanedAuthName) ||
-               lowerUrl.includes(hyphenAuthName);
-    }
-
-    /**
-     * If the fullMatchingImages contains a "lookaside" Facebook link, we will
-     * use that first. However, these are temporary image caches used for
-     * serving images through a CDN, but we can build a permanent link from the
-     * media ID if we find one.
-     *
-     * Facebook group posts rarely link to the correct post, so instead of
-     * saving the URL of an incorrect post, we will just save the URL to the
-     * actual group. This will also (correctly) lower the confidence score if
-     * other Reddit posts are found with the same OP. We always assume a FB
-     * group post URL will be structured exactly like this:
-     * https://www.facebook.com/groups/<group_name>/posts/<post_id>/
-     */
-    private getNormalizedUrl(page: any): string | null
-    {
-        const urlObj = new URL(page.url);
-        const isFbGroup = urlObj.hostname.endsWith("facebook.com") &&
-                          urlObj.pathname.includes("groups");
-
-        if (!isFbGroup) return page.url
-
-        const mediaId = this.findFacebookMediaId(page.fullMatchingImages);
-
-        if (mediaId)
+        for (const page of matchingPages)
         {
-            const fbPermalink = `https://www.facebook.com/photo.php?fbid=${mediaId}`;
-            if (this.fbLinks.has(fbPermalink)) return null;
-            this.fbLinks.add(fbPermalink);
-            return fbPermalink;
-        }
+            const url = page.url.toLowerCase();
 
-        const pathSegments = urlObj.pathname.split('/');
-        const groupName = pathSegments[2];
-        if (this.fbLinks.has(groupName)) return null;
-        this.fbLinks.add(groupName);
-        urlObj.pathname = pathSegments.slice(0, 3).join('/');
-        return urlObj.href;
-    }
+            if (url.includes(this.authorName) ||
+                url.includes(cleanedAuthName) ||
+                url.includes(hyphenAuthName))
+            {   // This will handle any site that has OP's name in the URL
+                continue;
+            }
 
-    private findFacebookMediaId(fullMatchingImages: any[]): string | null
-    {
-        if (!fullMatchingImages) return null;
+            const hasFullMatch: boolean = page.fullMatchingImages !== undefined;
+            const hasPartialMatch: boolean = page.partialMatchingImages !== undefined;
+            const hasDirectImgUrl: boolean = hasFullMatch &&
+                page.fullMatchingImages.some(
+                    (match: { url: string; }) => isDirectRedditImgUrl(match.url)
+                );
 
-        for (const match of fullMatchingImages)
-        {
             try
             {
-                const tempUrl = new URL(match.url);
-                if (tempUrl.hostname.includes("lookaside.fbsbx.com") &&
-                    tempUrl.searchParams.has("media_id"))
-                {
-                    return tempUrl.searchParams.get("media_id");
+                let urlToAdd = url;
+                const urlObj = new URL(url);
+                const path = urlObj.pathname;
+                const host = urlObj.hostname;
+                const proto = urlObj.protocol;
+                const notQuery = urlObj.search === "";
+
+                const isRedditPermalink = host.endsWith("reddit.com") &&
+                                          path.includes("comments") &&
+                                          notQuery;
+
+                const isSubredditLink = host.endsWith("reddit.com") &&
+                                        path.includes("r") &&
+                                        !path.includes("comments");
+
+                const isExternal = !host.endsWith("reddit.com") &&
+                                   !host.includes("redd.it") &&
+                                   proto.includes("https");
+
+                const isFbGroup = host.endsWith("facebook.com") &&
+                                  path.includes("groups");
+
+                if (isFbGroup)
+                {   // Facebook group posts rarely link to the correct post, so
+                    // instead of saving the URL of an incorrect post, we will
+                    // just save the URL to the actual group, making sure to add
+                    // only one URL match for each unique FB group. This will
+                    // also (correctly) lower the confidence score if other
+                    // Reddit posts are found with the same OP. We always assume
+                    // a FB group post URL will be structured exactly like this:
+                    // https://www.facebook.com/groups/<group_name>/posts/<post_id>/
+
+                    let fbUrlObj = null;
+                    for (const fullMatch of page.fullMatchingImages)
+                    {   // check for "lookaside" FB links, which are temporary
+                        // image caches used for serving images through a CDN
+                        const tempUrlObj = new URL(fullMatch.url);
+                        if (tempUrlObj.hostname.includes("lookaside.fbsbx.com"))
+                        {
+                            fbUrlObj = tempUrlObj;
+                            break;
+                        }
+                    }
+
+                    if (fbUrlObj !== null &&
+                        fbUrlObj.searchParams.has("media_id"))
+                    {   // "lookaside" links are temporary, but we can build a
+                        // permanent link from the media ID if we find one.
+                        const mediaId = fbUrlObj.searchParams.get("media_id");
+                        const fbPermalink = `https://www.facebook.com/photo.php?fbid=${mediaId}`;
+                        if (!fbLinks.includes(fbPermalink))
+                        {   // avoid duplicates
+                            fbLinks.push(fbPermalink);
+                            urlToAdd = fbPermalink;
+                        }
+                        else
+                        {
+                            continue;
+                        }
+                    }
+                    else
+                    {   // prefer "lookaside" links and fallback to group links
+                        const pathSegments = path.split('/');
+                        urlObj.pathname = pathSegments.slice(0, 3).join('/');
+                        const fbGroupLink = pathSegments[2];
+                        if (!fbLinks.includes(fbGroupLink))
+                        {   // avoid duplicates
+                            fbLinks.push(fbGroupLink);
+                            urlToAdd = urlObj.href;
+                        }
+                        else
+                        {
+                            continue;
+                        }
+                    }
                 }
-            }
-            catch (e) {}
-        }
-        return null;
-    }
 
-    /**
-     * There are some "AI" web-scraping websites that steal Reddit images to use
-     * on their site. We want to skip these to avoid false positives. Here is
-     * one example site I came across during testing: https://ge.life/mmm-yum
-     *
-     * @param {any} page - The page object to evaluate. It must contain a URL
-     *                     and may include a `fullMatchingImages` property with
-     *                     image data.
-     * @return {boolean} Returns true if the page is identified as a scraper
-     *                   site; otherwise, returns false.
-     */
-    private isScraperSite(page: any): boolean
-    {
-        const hasFullMatch = page.fullMatchingImages !== undefined;
-        if (!hasFullMatch) return false;
+                if (hasFullMatch && isExternal && hasDirectImgUrl)
+                {   // There are some "AI" websites that steal Reddit images to
+                    // use on their site. We want to skip these to avoid false
+                    // positives. Here is one example site I came across during
+                    // testing: https://ge.life/mmm-yum
+                    continue;
+                }
 
-        const urlObj = new URL(page.url);
-        const isReddit = urlObj.hostname.endsWith("reddit.com") ||
-                         urlObj.hostname.endsWith("redd.it");
-
-        if (isReddit) return false;
-
-        return page.fullMatchingImages.some((match: { url: string }) =>
-            isDirectRedditImgUrl(match.url)
-        );
-    }
-
-    // First Priority: A full match to a clean Reddit permalink
-    // Second Priority: A full match to an external link.
-    // Third Priority: A full match to a direct Reddit image link.
-    // Fourth Priority: A partial match to a clean Reddit permalink.
-    // Fifth Priority: A partial match to an external link.
-    // Final Priority: A partial match to a direct Reddit image link.
-    private categorizeMatch(
-        page: any,
-        urlToAdd: string,
-        tempPartialMatches: string[]): void
-    {
-        const hasFullMatch = page.fullMatchingImages !== undefined;
-        const hasPartialMatch = page.partialMatchingImages !== undefined;
-
-        const urlObj = new URL(urlToAdd);
-        const isReddit = urlObj.hostname.endsWith("reddit.com");
-        const isComments = urlObj.pathname.includes("comments");
-        const isSubreddit = urlObj.pathname.includes("r/") && !isComments;
-
-        const isRedditThread = isReddit && isComments && urlObj.search === "";
-        const isExternal = !isReddit &&
-                           !urlObj.hostname.includes("redd.it") &&
-                           urlObj.protocol === "https:";
-
-        // Priority 1 & 2: Full Match -> Reddit Thread OR External Link
-        if (hasFullMatch && (isRedditThread || isExternal))
-        {
-            this.matchList.push(urlToAdd);
-            return;
-        }
-
-        // Priority 3: Full Match -> Subreddit Link (Check direct images)
-        if (hasFullMatch && isSubreddit)
-        {   // we cannot verify the OP username on a direct
+                // First Priority: A full match to a clean Reddit permalink
+                // Second Priority: A full match to an external link.
+                // Third Priority: A full match to a direct Reddit image link.
+                // Fourth Priority: A partial match to a clean Reddit permalink.
+                // Fifth Priority: A partial match to an external link.
+                // Final Priority: A partial match to a direct Reddit image link.
+                if (hasFullMatch && (isRedditPermalink || isExternal))
+                {   // handles 1st and 2nd priorities
+                    this.matchList.push(urlToAdd);
+                }
+                else if (hasFullMatch && isSubredditLink)
+                {   // handles 3rd priority
+                    for (const fullMatch of page.fullMatchingImages)
+                    {
+                        if (isDirectRedditImgUrl(fullMatch.url))
+                        {   // we cannot verify the OP username on a direct
                             // image link, so we will consider it a partial
                             // match to ensure the confidence score is low
-             this.collectDirectLinks(
-                 page.fullMatchingImages, tempPartialMatches
-             );
-             return;
-        }
+                            tempPartialMatches.push(fullMatch.url);
+                        }
+                    }
+                }
+                else if (hasPartialMatch && (isRedditPermalink || isExternal))
+                {   // handles 4th and 5th priorities
+                    const onlyThumbnails = page.partialMatchingImages.every(
+                        (match: { url: string; }) => isRedditAsset(match.url)
+                    );
 
-        // Priority 4 & 5: Partial Match -> Reddit Thread OR External Link
-        if (hasPartialMatch && (isRedditThread || isExternal)) {
-            if (this.isValidPartialMatch(page.partialMatchingImages))
-            {
-                tempPartialMatches.push(urlToAdd);
+                    const onlyDirectLinks = page.partialMatchingImages.every(
+                        (match: { url: string; }) => isDirectRedditImgUrl(match.url)
+                    );
+
+                    if (!onlyThumbnails && !onlyDirectLinks)
+                    {   // Ignore thumbnail-only matches and direct-link-only
+                        // matches to avoid "sidebar noise." Google Vision
+                        // occasionally attributes sidebar/widget thumbnails to
+                        // the page URL, causing false positives.
+                        tempPartialMatches.push(urlToAdd);
+                    }
+                }
+                else if (hasPartialMatch && isSubredditLink)
+                {   // handles final priority
+                    for (const partialMatch of page.partialMatchingImages)
+                    {
+                        if (isDirectRedditImgUrl(partialMatch.url))
+                        {
+                            tempPartialMatches.push(partialMatch.url);
+                        }
+                    }
+                }
             }
-            return;
-        }
-
-        // Priority 6: Partial Match -> Subreddit Link
-        if (hasPartialMatch && isSubreddit)
-        {
-            this.collectDirectLinks(
-                page.partialMatchingImages, tempPartialMatches
-            );
-        }
-    }
-
-    /**
-     * Helper to collect direct reddit image links from a match array
-     */
-    private collectDirectLinks(matches: any[], targetArray: string[]): void
-    {
-        if (!matches) return;
-        for (const match of matches)
-        {
-            if (isDirectRedditImgUrl(match.url))
+            catch (e)
             {
-                targetArray.push(match.url);
+                log("ERROR", "Error when creating new Match", url)
+                console.error(e);
             }
         }
-    }
 
-    /**
-     * Ignore thumbnail-only matches and direct-link-only matches to avoid
-     * "sidebar noise." Google Vision occasionally attributes sidebar/widget
-     * thumbnails to the page URL, causing false positives.
-     */
-    private isValidPartialMatch(partialImages: any[]): boolean
-    {
-        if (!partialImages) return false;
-
-        const onlyThumbnails = partialImages.every(
-            (m: { url: string }) => isRedditAsset(m.url)
-        );
-
-        const onlyDirectLinks = partialImages.every(
-            (m: { url: string }) => isDirectRedditImgUrl(m.url)
-        );
-
-        return !onlyThumbnails && !onlyDirectLinks;
-    }
-
-    /**
-     * If no full matches were found, promote valid partial matches.
-     */
-    private finalizeMatches(tempPartialMatches: string[]): void
-    {
         if (this.matchList.length === 0 && tempPartialMatches.length > 0)
-        {
+        {   // There are no full matches, so we will use the partial matches
             this.matchList = tempPartialMatches;
             this.onlyPartialMatch = true;
             log("WARN", "Only partial matches found", "N/A");
 
-            const hasDirectImg = this.matchList.some(
+            const hasDirectImg: boolean = this.matchList.some(
                 url => isDirectRedditImgUrl(url)
             );
 
-            const hasPermalink = this.matchList.some(
+            const hasPermalink: boolean = this.matchList.some(
                 url => isRedditPermalink(url)
-            );
+            )
 
             if (hasDirectImg && !hasPermalink)
-            {
+            {   // we want to be less confident when there are only direct image
+                // links and no permalinks
                 this.onlyDirectImgUrl = true;
             }
         }

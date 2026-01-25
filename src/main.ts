@@ -370,8 +370,8 @@ Devvit.addTrigger({
 
 Devvit.addMenuItem({
     location: "post",
-    label: "Add OP to Whitelist",
-    description: "Picture Police",
+    label: "Toggle OP in Picture Police Whitelist",
+    description: "Skips all posts from OP in your subreddit",
     forUserType: "moderator",
     onPress: async (event, context) =>
     {
@@ -384,36 +384,23 @@ Devvit.addMenuItem({
 
         if (isWhitelisted === "true")
         {
-            context.ui.showToast(`u/${key} is already whitelisted.`);
-            return;
+            await context.redis.del(key);
+            context.ui.showToast(`u/${key} REMOVED from whitelist.`);
         }
-
-        await context.redis.set(key, "true");
-        const value = await context.redis.get(key);
-        if (!value)
+        else
         {
-            context.ui.showToast(`u/${key} failed to whitelist.`);
-            log("ERROR", `Failed to whitelist u/${key}`, post.permalink);
-            return;
+            await context.redis.set(key, "true");
+            const value = await context.redis.get(key);
+            if (!value)
+            {
+                context.ui.showToast(`u/${key} failed to whitelist.`);
+                log("ERROR", `Failed to whitelist u/${key}`, post.permalink);
+            }
+            else
+            {
+                context.ui.showToast(`u/${key} ADDED to whitelist.`);
+            }
         }
-
-        context.ui.showToast(`u/${key} added to whitelist.`);
-    }
-});
-
-Devvit.addMenuItem({
-    location: "post",
-    label: "Remove OP from Whitelist",
-    description: "Picture Police",
-    forUserType: "moderator",
-    onPress: async (event, context) =>
-    {
-        const post = await context.reddit.getPostById(event.targetId);
-        const author = await post.getAuthor();
-        if (!author) return;
-        const key = author.username;
-        await context.redis.del(key);
-        context.ui.showToast(`u/${key} removed from whitelist.`);
     }
 });
 

@@ -324,6 +324,13 @@ export class Match
         this.numCleanedMatches = this.matchList.length;
     }
 
+    /**
+     * This only represents a confidence score for each image that OP submitted.
+     * If OP submits only 1 image, then this score will be used. If OP submits
+     * more than 1 image, then the maximum score of all images will be used, as
+     * that will indicate the overall confidence of that at least one image is
+     * stolen.
+     */
     get score()
     {
         const matchDiff = this.numOriginalMatches - this.numCleanedMatches;

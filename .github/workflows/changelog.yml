@@ -25,16 +25,16 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Get Commit Message
-        id: msg
+      - name: Update Changelog with New Commits
         run: |
-          # Get the last commit message, strictly one line
-          MSG=$(git log -1 --pretty=%s)
-          echo "message=$MSG" >> $GITHUB_OUTPUT
-
-      - name: Run Changelog Script
-        # We pass the commit message as an argument to the script
-        run: node scripts/update-changelog.js "${{ steps.msg.outputs.message }}"
+          # 1. Get the range of commits (from 'before' this push to 'now')
+          # 2. --no-merges: Filter out the "Merge pull request" commit
+          # 3. format=%s: Get only the subject line
+          
+          git log --no-merges --pretty=format:"%s" ${{ github.event.before }}..${{ github.event.after }} | while read -r line ; do
+            echo "Adding to changelog: $line"
+            node scripts/update-changelog.js "$line"
+          done
 
       - name: Commit and Push Changes
         run: |

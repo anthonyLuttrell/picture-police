@@ -554,6 +554,19 @@ export function isRedditAsset(url: string): boolean
            urlObj.hostname.endsWith("redditstatic.com");
 }
 
+export function stripQueryString(urlStr: string): string
+{
+    try
+    {
+        const urlObj = new URL(urlStr);
+        return `${urlObj.origin}${urlObj.pathname}`;
+    }
+    catch (error)
+    {   // don't change anything on error, malformed URL
+        return urlStr;
+    }
+}
+
 // function getTimeDifference(originalPostDate: string, matchingPostDate: string)
 // {
 //     const d1 = new Date(originalPostDate);

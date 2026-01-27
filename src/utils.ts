@@ -6,8 +6,11 @@ export const PROBABLE_MATCH_KEY = "stats:daily_probable_match";
 export const SCAN_KEY = "stats:daily_scans";
 export const MIN_CONF = 50; // a score BELOW this number is considered NOT confident
 
+const POST_ID_TOKEN = "[POST_ID_TOKEN]";
+const SUB_TOKEN = "[SUB_TOKEN]";
 const URL_TOKEN = "[URL_TOKEN]";
-const MAIL_LINK = `[Click here to submit feedback](https://www.reddit.com/message/compose/?to=96dpi&subject=Picture%20Police%20Feedback&message=Regarding%20post:%20${URL_TOKEN})`;
+const COMMENT_FEEDBACK_LINK = `[Click here to submit feedback](https://www.reddit.com/message/compose?to=r/${SUB_TOKEN}&subject=Picture%20Police%20Feedback&message=Regarding%20post:%20/r/${SUB_TOKEN}/comments/${POST_ID_TOKEN})`;
+const MOD_MAIL_FEEDBACK_LINK = `[Click here to submit feedback](https://www.reddit.com/message/compose/?to=96dpi&subject=Picture%20Police%20Feedback&message=Regarding%20post:%20${URL_TOKEN})`;
 const DISCLAIMER = `**Note:** Click on external links at your own risk. This `+
     `bot does not guarantee the security of any external websites you visit.`;
 
@@ -144,12 +147,12 @@ export async function comment(
     const ocCommentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
         `This image appears to be u/${authorName}'s original content. I could `+
         `not find any matching images anywhere on the web.\n\n`+
-        `---\n\n${MAIL_LINK}`;
+        `---\n\n${COMMENT_FEEDBACK_LINK}`;
 
     const ocCommentStrPlural = `🚨 **Picture Police** 🚨\n\n` +
         `These images appear to be u/${authorName}'s original content. I could `+
         `not find any matching images anywhere on the web.\n\n`+
-        `---\n\n${MAIL_LINK}`;
+        `---\n\n${COMMENT_FEEDBACK_LINK}`;
 
     const possibleOcCommentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
         `I am only **${maxScore}%** confident that this is a **stolen** image. `+
@@ -167,13 +170,13 @@ export async function comment(
         `I am **${maxScore}%** confident that this is a **stolen** image. ` +
         `I found the same image on **${totalMatchCount}** other site(s). ` +
         `Here is an example of what I found:\n\n `+
-        `${urlStr}${DISCLAIMER}\n\n---\n\n${MAIL_LINK}`;
+        `${urlStr}${DISCLAIMER}\n\n---\n\n${COMMENT_FEEDBACK_LINK}`;
 
     const stolenCommentStrPlural = `🚨 **Picture Police** 🚨\n\n` +
         `I am **${maxScore}%** confident that this post contains **stolen** ` +
         `images. I found duplicate images on **${totalMatchCount}** other ` +
         `sites. Here is an example of each image found on another site:\n\n `+
-        `${urlStr}${DISCLAIMER}\n\n---\n\n${MAIL_LINK}`;
+        `${urlStr}${DISCLAIMER}\n\n---\n\n${COMMENT_FEEDBACK_LINK}`;
 
     const isOc = maxScore <= 0;
     const possibleOc = !isOc && maxScore < MIN_CONF;
@@ -207,9 +210,12 @@ export async function comment(
         commentStr = stolenCommentStrPlural;
     }
 
+    commentStr = commentStr.replaceAll(SUB_TOKEN, context.subredditName);
+    commentStr = commentStr.replace(POST_ID_TOKEN, postId.replace("t3_", ""));
+
     const comment = await context.reddit.submitComment({
         id: postId,
-        text: commentStr.replace(URL_TOKEN, postId)
+        text: commentStr
     });
 
     if (comment)
@@ -339,7 +345,7 @@ export async function sendModMail(
             `**Matches:** ${numMatches}\n\n`+
             `**Score:** ${maxScore}%\n\n`+
             `**Example ${matchStr}:**\n\n${urlStr}\n\n---\n\n`+
-            `${MAIL_LINK.replace(URL_TOKEN, url)}`;
+            `${MOD_MAIL_FEEDBACK_LINK.replace(URL_TOKEN, url)}`;
 
         const modMailId = await context.reddit.modMail.createModNotification({
             subject: "🚨 Picture Police Report 🚨",

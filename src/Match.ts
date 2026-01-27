@@ -97,8 +97,12 @@ export class Match
                                         path.includes("r") &&
                                         !path.includes("comments");
 
+                const isRedditGallery = host.endsWith("redditery.com") &&
+                                        path.includes("user");
+
                 const isExternal = !host.endsWith("reddit.com") &&
                                    !host.includes("redd.it") &&
+                                   !host.includes("redditery.com") &&
                                    proto.includes("https");
 
                 // NOTE: Will try to use the "lookaside" links as-is for now, if
@@ -222,7 +226,7 @@ export class Match
                         this.matchList.push(directImgLinkFullMatch);
                     }
                 }
-                else if (hasFullMatch && isSubredditLink)
+                else if (hasFullMatch && (isSubredditLink || isRedditGallery))
                 {   // 3rd priority
                     for (const fullMatch of page.fullMatchingImages)
                     {

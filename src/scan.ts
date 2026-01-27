@@ -40,15 +40,13 @@ export async function reverseImageSearch(
  * the posts.
  * @param {Match[]|[]} sourceMatches - The list of `Match` objects to search for
  * matches.
- * @return {Promise<number>} - The number of reddit OP matches found.
+ * @return {Promise<void>}
  */
 export async function findMatchingUsernames(
     context: any,
     authorName: string,
-    sourceMatches: Match[]|[]): Promise<number>
+    sourceMatches: Match[]|[]): Promise<void>
 {
-    let totalRemoved = 0;
-
     for (const match of sourceMatches)
     {
         const urlsToRemove: string[] = [];
@@ -79,5 +77,58 @@ export async function findMatchingUsernames(
         }
         match.removeMatches(urlsToRemove);
     }
-    return totalRemoved;
+}
+
+export async function findMatchingSocialLinks(
+    context: any,
+    authorName: string,
+    sourceMatches: Match[]|[]): Promise<void>
+{
+    const user = await context.reddit.getUserByUsername(authorName);
+    const socialLinks = await user.getSocialLinks();
+    if (!socialLinks || socialLinks.length === 0) return;
+    const socialHandles: string[] = [];
+
+    for (const link of socialLinks)
+    {
+        if (link.handle !== undefined)
+        {   // prefer handle
+            socialHandles.push(link.handle);
+            console.debug(`Found social handle: ${link.handle}`);
+        }
+        else if (link.title !== undefined)
+        {   // use title if handle is not available
+            socialHandles.push(link.title);
+            console.debug(`Found social title: ${link.title}`);
+        }
+        else if (link.outboundUrl !== undefined)
+        {   // fallback to pathname and hostname
+            const urlObj = new URL(link.outboundUrl);
+            if (urlObj.pathname !== "")
+            {   // Not supporting multiple paths at this time
+                console.debug(`Found social url/path: ${urlObj.hostname.replaceAll("/", "")}`);
+                socialHandles.push(urlObj.pathname.replaceAll("/", ""));
+            }
+            console.debug(`Found social url/host: ${urlObj.hostname}`);
+            socialHandles.push(urlObj.hostname);
+        }
+    }
+
+    for (const match of sourceMatches)
+    {
+        const urlsToRemove: string[] = [];
+        for (const url of match.matches)
+        {
+            if (socialHandles.some(handle => url.includes(handle)))
+            {
+                console.debug(`Matching social link found in: ${url}`);
+                urlsToRemove.push(url);
+            }
+            else
+            {
+                console.debug(`No matching social link found in: ${url}`);
+            }
+        }
+        match.removeMatches(urlsToRemove);
+    }
 }

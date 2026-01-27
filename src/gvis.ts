@@ -30,7 +30,12 @@ export async function checkGoogleVision(imgUrl: string, apiKey: string)
             });
 
         const data = await response.json();
-        // console.debug(`WEB_DETECTION result:\n\n${JSON.stringify(data.responses[0].webDetection, null, 2)}`);
+        // const pagesWithMatchingImages = data.responses[0].webDetection.pagesWithMatchingImages;
+        // for (const page of pagesWithMatchingImages)
+        // {
+        //     console.debug(JSON.stringify(page, null, 2));
+        // }
+        // console.debug(`WEB_DETECTION result:\n\n${JSON.stringify(data.responses[0].webDetection.pagesWithMatchingImages, null, 2)}`);
         return data.responses[0].webDetection;
     }
     catch (e)

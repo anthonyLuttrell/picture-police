@@ -92,7 +92,7 @@ Devvit.addSettings([
                 name: "CONFIDENCE_THRESHOLD",
                 label: "Confidence threshold",
                 helpText: "A confidence score BELOW this number will not trigger any mod notifications or mod actions. Comments (if enabled) will still be made.",
-                defaultValue: 50
+                defaultValue: 51
             },
             {
                 type: "boolean",

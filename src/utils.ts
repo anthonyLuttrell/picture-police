@@ -1,6 +1,7 @@
 import {RedditAPIClient} from "@devvit/public-api";
 import {Match} from "./Match.js";
 
+export const GVIS_API_REQ_COUNT_KEY = "stats:gvis_api_requests";
 export const POTENTIAL_MATCH_KEY = "stats:daily_potential_matches";
 export const PROBABLE_MATCH_KEY = "stats:daily_probable_match";
 export const SCAN_KEY = "stats:daily_scans";
@@ -446,26 +447,25 @@ export async function sendActionSummary(
     context: any,
     frequency: string): Promise<void>
 {
-    const [scanStr, potentialStr, probableStr] = await Promise.all([
+    const [scanStr, potentialStr, probableStr, apiCountStr] = await Promise.all([
         context.redis.get(SCAN_KEY),
         context.redis.get(POTENTIAL_MATCH_KEY),
-        context.redis.get(PROBABLE_MATCH_KEY)
+        context.redis.get(PROBABLE_MATCH_KEY),
+        context.redis.get(GVIS_API_REQ_COUNT_KEY)
     ]);
 
     const totalScans = parseInt(scanStr || '0', 10);
     const potential = parseInt(potentialStr || '0', 10);
     const probable = parseInt(probableStr || '0', 10);
+    const apiCount = parseInt(apiCountStr || '0', 10);
 
     if (Number.isNaN(totalScans) ||
         Number.isNaN(potential) ||
-        Number.isNaN(probable))
+        Number.isNaN(probable) ||
+        Number.isNaN(apiCount))
     {
         log("ERROR", "Invalid Redis value(s)", "N/A");
-        await Promise.all([
-            context.redis.del(SCAN_KEY),
-            context.redis.del(POTENTIAL_MATCH_KEY),
-            context.redis.del(PROBABLE_MATCH_KEY)
-        ]);
+        await redisDeleteAll(context);
         return;
     }
 
@@ -481,15 +481,18 @@ export async function sendActionSummary(
     };
 
     const { label, range } = config[frequency] || { label: frequency, range: frequency };
+    const totalCost = totalScans * 0.0035;
 
     const summaryMarkdown = `
 ###### Here is the action summary for the last ${range}.
 
 | Metric | Count |
 | :--- | :--- |
-| **Total Scans** | ${totalScans} |
+| **Total Post Scans** | ${totalScans} |
 | **Potential Matches** | ${potential} |
 | **Probable Matches** | ${probable} |
+| **Total API Requests** | ${apiCount} |
+| **Total API Cost** | $${totalCost.toFixed(2)} |
 
 > **OC Rate:** ${ocRate}% of submissions were original content.
 
@@ -500,6 +503,12 @@ Manage these notifications in [your app settings](https://developers.reddit.com/
 
     try
     {
+        await context.reddit.sendPrivateMessage({
+            to: "96dpi",
+            subject: `Picture Police ${label} Action Summary for r/${context.subredditName}`,
+            text: summaryMarkdown.trim()
+        });
+
         await context.reddit.modMail.createModNotification({
             subject: `🛡️ Picture Police ${label} Action Summary 🛡️`,
             bodyMarkdown: summaryMarkdown.trim(),
@@ -512,10 +521,16 @@ Manage these notifications in [your app settings](https://developers.reddit.com/
         log("ERROR", `Failed to send ${frequency} action summary`, "N/A");
     }
 
+    await redisDeleteAll(context);
+}
+
+async function redisDeleteAll(context: any)
+{
     await Promise.all([
         context.redis.del(SCAN_KEY),
         context.redis.del(POTENTIAL_MATCH_KEY),
-        context.redis.del(PROBABLE_MATCH_KEY)
+        context.redis.del(PROBABLE_MATCH_KEY),
+        context.redis.del(GVIS_API_REQ_COUNT_KEY)
     ]);
 }
 

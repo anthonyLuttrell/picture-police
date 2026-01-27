@@ -9,6 +9,7 @@ import {
     SCAN_KEY,
     POTENTIAL_MATCH_KEY,
     PROBABLE_MATCH_KEY,
+    GVIS_API_REQ_COUNT_KEY,
     MIN_CONF,
     comment,
     getTotalMatchCount,
@@ -276,6 +277,8 @@ Devvit.addTrigger({
             return;
         }
 
+        await context.redis.incrBy(GVIS_API_REQ_COUNT_KEY, userImgUrls.length);
+
         const opMatches = await reverseImageSearch(
             apiKey,
             userImgUrls,
@@ -450,6 +453,7 @@ Devvit.addTrigger({
     events: ['AppInstall', 'AppUpgrade'],
     onEvent: async (_, context) =>
     {   // clear out all the jobs first to ensure there is only ever this one
+        // if more jobs are added later, change this to use the job ID
         const jobs = await context.scheduler.listJobs();
         await Promise.all(jobs.map(job => context.scheduler.cancelJob(job.id)));
 

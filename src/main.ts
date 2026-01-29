@@ -1,6 +1,7 @@
 import {APP_CHANGELOG} from "./changelog";
 import {Devvit, SettingScope} from "@devvit/public-api";
 import {reverseImageSearch, findMatchingUsernames} from "./scan.js";
+import {checkPostKeywords} from "./keyword_utils.js";
 import {
     SCAN_KEY,
     POTENTIAL_MATCH_KEY,
@@ -39,6 +40,37 @@ Devvit.addSettings([
         label: 'Exclude mods',
         defaultValue: true,
         helpText: "If enabled, Picture Police will skip all posts from any moderator in your subreddit.",
+    },
+    {
+        type: 'group',
+        label: 'Keyword Hook Settings',
+        helpText: "Only scan posts that contain specific keywords.",
+        fields: [
+            {
+                type: 'boolean',
+                name: 'KEYWORD_HOOK_ENABLE',
+                label: 'Enable keyword hook',
+                defaultValue: false,
+                helpText: "If enabled, Picture Police will only scan posts that contain one of the keywords below.",
+            },
+            {
+                type: 'string',
+                name: 'KEYWORD_HOOK_KEYWORDS',
+                label: 'Keywords',
+                helpText: "Comma-separated list of keywords or phrases to look for (case-insensitive).",
+            },
+            {
+                type: "select",
+                name: "KEYWORD_HOOK_SCOPE",
+                label: "Search scope",
+                defaultValue: ["title"],
+                options: [
+                    { label: "Title only", value: "title" },
+                    { label: "Body only", value: "body" },
+                    { label: "Title or Body", value: "both" }
+                ]
+            }
+        ]
     },
     {
         type: 'group',
@@ -222,6 +254,23 @@ Devvit.addTrigger({
         {
             log("INFO", "User is whitelisted, exiting", post.permalink);
             return;
+        }
+
+        const keywordHookEnable = await context.settings.get('KEYWORD_HOOK_ENABLE');
+        if (keywordHookEnable)
+        {
+            const keywordStr = await context.settings.get<string>('KEYWORD_HOOK_KEYWORDS') || "";
+            const scope = await context.settings.get<string[]>('KEYWORD_HOOK_SCOPE');
+            const scopeVal = (scope && scope.length > 0) ? scope[0] : "title";
+            const keywords = keywordStr.split(',');
+
+            const hasKeyword = checkPostKeywords(post.title, (post as any).body, keywords, scopeVal);
+
+            if (!hasKeyword)
+            {
+                log("INFO", "Post does not contain required keywords, exiting", post.permalink);
+                return;
+            }
         }
 
         if (post.isImage)

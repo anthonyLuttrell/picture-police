@@ -10,10 +10,9 @@ export const APP_CHANGELOG: Record<string, string[]> =
     ],
     "1.3.1": [
         "Change confidence threshold default setting to 51",
-        "Remove query strings from direct image URLs",
+        "Remove unnecessary query strings from direct image URLs",
         "Support Reddit Gallery (\"redditery.com\") URLs for matching images",
         "Change destination on comment feedback links to send to mod mail",
-        "Compare external URLs to author's social links on their Reddit profile",
         "Add API usage stats to action summaries",
     ],
 };

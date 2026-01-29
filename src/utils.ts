@@ -575,8 +575,10 @@ export function isRedditAsset(url: string): boolean
            urlObj.hostname.endsWith("redditstatic.com");
 }
 
-export function stripQueryString(urlStr: string): string
+export function stripQueryString(urlStr: string | undefined): string | undefined
 {
+    if (!urlStr) return undefined;
+
     try
     {
         const urlObj = new URL(urlStr);

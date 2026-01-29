@@ -14,5 +14,6 @@ export const APP_CHANGELOG: Record<string, string[]> =
         "Support Reddit Gallery (\"redditery.com\") URLs for matching images",
         "Change destination on comment feedback links to send to mod mail",
         "Add API usage stats to action summaries",
+        "Improve matching logic"
     ],
 };

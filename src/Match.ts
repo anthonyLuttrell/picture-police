@@ -6,12 +6,24 @@ import {
     stripQueryString
 } from "./utils.js";
 
+interface UrlObj { url: string; }
+interface Page
+{
+    url: string;
+    pageTitle: string;
+    fullMatchingImages?: UrlObj[];
+    partialMatchingImages?: UrlObj[];
+}
+
+type PageArr = Array<Page>;
+type MatchArr = Array<UrlObj>;
+
 /**
  * Each Match object represents each "match" from the Web Detection result.
  */
 export class Match
 {
-    private readonly matchingImagesObj: any;
+    private readonly matchingImagesObj: PageArr;
     private readonly authorName: string;
     private matchList: string[] = [];
     private numCleanedMatches: number = 0;
@@ -21,10 +33,10 @@ export class Match
     public readonly numOriginalMatches: number = 0;
     public isDeleted: boolean = false;
 
-    constructor(matchingImagesObj: any, index: number, authorName: string)
+    constructor(matchingImagesObj: PageArr, index: number, authorName: string)
     {
         this.galleryIdx = index + 1; // 1-based to align with gallery images
-        this.matchingImagesObj = matchingImagesObj === undefined ? [] : matchingImagesObj;
+        this.matchingImagesObj = matchingImagesObj ?? [] as PageArr;
         this.authorName = authorName;
         this.setMatchList();
         this.numOriginalMatches = this.matchList.length;

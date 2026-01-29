@@ -268,7 +268,7 @@ Devvit.addTrigger({
 
             if (!hasKeyword)
             {
-                log("INFO", "Post does not contain required keywords, exiting", post.permalink);
+                log("INFO", "Skipping: No keywords found", post.permalink);
                 return;
             }
         }

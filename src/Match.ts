@@ -72,29 +72,27 @@ export class Match
         // of partial matches to add later if we don't find any full matches.
         const tempPartialMatches: string[] = [];
         const matchingPages = this.matchingImagesObj;
-        // const fbLinks: string[] = [];
-
-        // Reddit only allows underscore and hyphen in usernames
-        let cleanedAuthName = this.authorName.replace(/-/g, "").toLowerCase();
-        cleanedAuthName = cleanedAuthName.replace(/_/g, "");
-
-        // Underscores are not recommended in URLs, so we will try with a hyphen
-        const hyphenAuthName = this.authorName.replace(/_/g, "-").toLowerCase();
+        const fbLinks: string[] = [];
 
         for (const page of matchingPages)
         {
             const url = page.url.toLowerCase();
 
-            if (url.includes(this.authorName) ||
-                url.includes(cleanedAuthName) ||
-                url.includes(hyphenAuthName))
-            {   // This will handle any site that has OP's name in the URL
+            if (this.usernameInUrl(url) ||
+                this.usernameInUrl(page.fullMatchingImages?.[0].url ?? "") ||
+                this.usernameInUrl(page.partialMatchingImages?.[0].url ?? ""))
+            {   // Must check fullMatch and partialMatch because they are
+                // optional members of the page object, and they can be totally
+                // different links than page.url.
                 continue;
             }
 
+            const hasFullMatch: boolean = page.fullMatchingImages !== undefined;
+            const hasPartialMatch: boolean = page.partialMatchingImages !== undefined;
+            let urlToAdd = url;
+
             try
             {
-                let urlToAdd = url;
                 const urlObj = new URL(url);
                 const path = urlObj.pathname;
                 const host = urlObj.hostname;
@@ -117,74 +115,45 @@ export class Match
                                    !host.includes("redditery.com") &&
                                    proto.includes("https");
 
-                // NOTE: Will try to use the "lookaside" links as-is for now, if
-                // they fail to resolve to the actual FB post in the future,
-                // then we will need to convert them to FB permalinks.
+                const isFacebook = host.endsWith("facebook.com");
 
-                // const isFbGroup = host.endsWith("facebook.com") &&
-                //                   path.includes("groups");
-                //
-                // if (isFbGroup)
-                // {   // Facebook group posts rarely link to the correct post, so
-                //     // instead of saving the URL of an incorrect post, we will
-                //     // just save the URL to the actual group, making sure to add
-                //     // only one URL match for each unique FB group. This will
-                //     // also (correctly) lower the confidence score if other
-                //     // Reddit posts are found with the same OP. We always assume
-                //     // a FB group post URL will be structured exactly like this:
-                //     // https://www.facebook.com/groups/<group_name>/posts/<post_id>/
-                //
-                //     let fbUrlObj = null;
-                //     for (const fullMatch of page.fullMatchingImages)
-                //     {   // check for "lookaside" FB links, which are temporary
-                //         // image caches used for serving images through a CDN
-                //         const tempUrlObj = new URL(fullMatch.url);
-                //         if (tempUrlObj.hostname.includes("lookaside.fbsbx.com"))
-                //         {
-                //             fbUrlObj = tempUrlObj;
-                //             break;
-                //         }
-                //     }
-                //
-                //     if (fbUrlObj !== null &&
-                //         fbUrlObj.searchParams.has("media_id"))
-                //     {   // "lookaside" links are temporary, but we can build a
-                //         // permanent link from the media ID if we find one.
-                //         const mediaId = fbUrlObj.searchParams.get("media_id");
-                //         const fbPermalink = `https://www.facebook.com/photo.php?fbid=${mediaId}`;
-                //         if (!fbLinks.includes(fbPermalink))
-                //         {   // avoid duplicates
-                //             fbLinks.push(fbPermalink);
-                //             urlToAdd = fbPermalink;
-                //         }
-                //         else
-                //         {
-                //             continue;
-                //         }
-                //     }
-                //     else
-                //     {   //fallback to group links
-                //         const pathSegments = path.split('/');
-                //         urlObj.pathname = pathSegments.slice(0, 3).join('/');
-                //         const fbGroupLink = pathSegments[2];
-                //         if (!fbLinks.includes(fbGroupLink))
-                //         {   // avoid duplicates
-                //             fbLinks.push(fbGroupLink);
-                //             urlToAdd = urlObj.href;
-                //         }
-                //         else
-                //         {
-                //             continue;
-                //         }
-                //     }
-                // }
+                if (isFacebook)
+                {   // Facebook uses temporary image caches for serving images
+                    // through a CDN. The hostname is "lookaside.fbsbx.com".
+                    // Supposedly (per Gemini), these are temporary links that
+                    // may fail to resolve to the actual post at some point.
+                    // However, I don't see that being a problem, as long as
+                    // Google Vision is correctly identifying a match on the
+                    // same link. So we will try to use the "lookaside" links
+                    // as-is for now, and if they fail to resolve to the actual
+                    // FB post in the future, then we will need to convert them
+                    // to FB permalinks.
 
-                const hasFullMatch: boolean = page.fullMatchingImages !== undefined;
-                const hasPartialMatch: boolean = page.partialMatchingImages !== undefined;
-                const hasDirectRedditImgUrl: boolean = hasFullMatch &&
-                    page.fullMatchingImages.some(
-                        (match: { url: string; }) => isDirectRedditImgUrl(match.url)
+                    const fullMatch = this.getLookasideLink(
+                        page?.fullMatchingImages ?? []
                     );
+
+                    const partMatch = this.getLookasideLink(
+                        page?.partialMatchingImages ?? []
+                    )
+
+                    if (fullMatch && !fbLinks.includes(fullMatch))
+                    {
+                        this.matchList.push(fullMatch);
+                        fbLinks.push(fullMatch);
+                    }
+                    else if (partMatch && !fbLinks.includes(partMatch))
+                    {
+                        tempPartialMatches.push(partMatch);
+                        fbLinks.push(partMatch);
+                    }
+
+                    continue; // skip the rest of the loop
+                }
+
+                const hasDirectRedditImgUrl = page.fullMatchingImages?.some(
+                        match => isDirectRedditImgUrl(match.url)
+                    ) ?? false;
 
                 // When a match is found on an external website, we want to use
                 // the direct-image URL instead of the URL to the actual site.
@@ -195,20 +164,20 @@ export class Match
                 // website, and the stolen image in question is not always
                 // easily found on the sketchy website anyway.
 
-                let directImgLinkFullMatch = null;
-                let directImgLinkPartialMatch = null;
+                let directImgLinkFullMatch: string | undefined;
+                let directImgLinkPartMatch: string | undefined;
 
                 if (hasFullMatch && isExternal)
                 {
                     directImgLinkFullMatch = stripQueryString(
-                        page.fullMatchingImages[0].url
+                        page.fullMatchingImages?.[0].url
                     );
                 }
 
                 if (hasPartialMatch && isExternal)
                 {
-                    directImgLinkPartialMatch = stripQueryString(
-                        page.partialMatchingImages[0].url
+                    directImgLinkPartMatch = stripQueryString(
+                        page.partialMatchingImages?.[0].url
                     );
                 }
 
@@ -240,7 +209,7 @@ export class Match
                 }
                 else if (hasFullMatch && (isSubredditLink || isRedditGallery))
                 {   // 3rd priority
-                    for (const fullMatch of page.fullMatchingImages)
+                    for (const fullMatch of page?.fullMatchingImages ?? [])
                     {
                         if (isDirectRedditImgUrl(fullMatch.url))
                         {   // we cannot verify the OP username on a direct
@@ -252,15 +221,13 @@ export class Match
                 }
                 else if (hasPartialMatch && isRedditPermalink)
                 {   // 4th priority
-                    const onlyThumbnails = page.partialMatchingImages.every(
-                        (match: { url: string; }) => isRedditAsset(match.url)
-                    );
+                    const onlyThumbnails = page.partialMatchingImages?.every(
+                        match => isRedditAsset(match.url)
+                    ) ?? false;
 
-                    const onlyDirectLinks = page.partialMatchingImages.every(
-                        (match: {
-                            url: string;
-                        }) => isDirectRedditImgUrl(match.url)
-                    );
+                    const onlyDirectLinks = page.partialMatchingImages?.every(
+                        match => isDirectRedditImgUrl(match.url)
+                    ) ?? false;
 
                     if (!onlyThumbnails && !onlyDirectLinks)
                     {   // Ignore thumbnail-only matches and direct-link-only
@@ -272,19 +239,19 @@ export class Match
                 }
                 else if (hasPartialMatch && isExternal)
                 {   // 5th priority
-                    if (directImgLinkPartialMatch &&
-                        !tempPartialMatches.includes(directImgLinkPartialMatch))
+                    if (directImgLinkPartMatch &&
+                        !tempPartialMatches.includes(directImgLinkPartMatch))
                     {
-                        tempPartialMatches.push(directImgLinkPartialMatch);
+                        tempPartialMatches.push(directImgLinkPartMatch);
                     }
                 }
                 else if (hasPartialMatch && isSubredditLink)
                 {   // final priority
-                    for (const partialMatch of page.partialMatchingImages)
+                    for (const partMatch of page?.partialMatchingImages ?? [])
                     {
-                        if (isDirectRedditImgUrl(partialMatch.url))
+                        if (isDirectRedditImgUrl(partMatch.url))
                         {
-                            tempPartialMatches.push(partialMatch.url);
+                            tempPartialMatches.push(partMatch.url);
                         }
                     }
                 }
@@ -318,6 +285,40 @@ export class Match
         }
     }
 
+    private usernameInUrl(url: string): boolean
+    {
+        if (url === "") return false; // quick out
+
+        const urlObj = new URL(url);
+        // Reddit only allows underscores and hyphens in usernames
+        let cleanUserName = this.authorName.replace(/-/g, "").toLowerCase();
+        cleanUserName = cleanUserName.replace(/_/g, "");
+
+        // Underscores are not recommended in URLs, so we will try with a hyphen
+        const hyphenUserName = this.authorName.replace(/_/g, "-").toLowerCase();
+
+        return urlObj.hostname.includes(this.authorName.toLowerCase()) ||
+               urlObj.hostname.includes(cleanUserName) ||
+               urlObj.hostname.includes(hyphenUserName) ||
+               urlObj.pathname.includes(this.authorName.toLowerCase()) ||
+               urlObj.pathname.includes(cleanUserName) ||
+               urlObj.pathname.includes(hyphenUserName);
+    }
+
+    private getLookasideLink(matches: MatchArr): string | null
+    {
+        for (const match of matches)
+        {
+            const fbUrlObj = new URL(match.url);
+            if (fbUrlObj.hostname.includes("lookaside.fbsbx.com"))
+            {
+                return match.url;
+            }
+        }
+
+        return null;
+    }
+
     get numMatches()
     {
         return this.numCleanedMatches;
@@ -330,9 +331,8 @@ export class Match
 
     /**
      * We remove matches if the author of this post is the same author of
-     * a matched Reddit post, meaning they are the same OP on two different
-     * posts. Currently, we do not attempt to find the author of any non-Reddit
-     * websites.
+     * a matched Reddit post, or if their username appears in the URL of an
+     * external website.
      */
     public removeMatches(urlsToRemove: string[])
     {
@@ -346,7 +346,7 @@ export class Match
      * This only represents a confidence score for each image that OP submitted.
      * If OP submits only 1 image, then this score will be used. If OP submits
      * more than 1 image, then the maximum score of all images will be used, as
-     * that will indicate the overall confidence of that at least one image is
+     * that will indicate the overall confidence that at least one image is
      * stolen.
      */
     get score()

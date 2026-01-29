@@ -12,8 +12,10 @@ export function checkPostKeywords(
     body: string | undefined,
     keywords: string[],
     scope: string
-): boolean {
-    if (!keywords || keywords.length === 0) {
+): boolean
+{
+    if (!keywords || keywords.length === 0)
+    {
         return false;
     }
 
@@ -22,7 +24,8 @@ export function checkPostKeywords(
         .map(k => k.trim().toLowerCase())
         .filter(k => k.length > 0);
 
-    if (normalizedKeywords.length === 0) {
+    if (normalizedKeywords.length === 0)
+    {
         return false;
     }
 
@@ -31,11 +34,16 @@ export function checkPostKeywords(
 
     const check = (text: string) => normalizedKeywords.some(keyword => text.includes(keyword));
 
-    if (scope === "title") {
+    if (scope === "title")
+    {
         return check(normalizedTitle);
-    } else if (scope === "body") {
+    }
+    else if (scope === "body")
+    {
         return check(normalizedBody);
-    } else {
+    }
+    else
+    {
         // Default to checking both for "both" or any unknown value
         return check(normalizedTitle) || check(normalizedBody);
     }

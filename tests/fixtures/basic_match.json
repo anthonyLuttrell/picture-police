@@ -1,0 +1,33 @@
+{
+  "description": "Basic match scenario with one full match on Reddit and one partial match external",
+  "input": {
+    "apiKey": "test-key",
+    "sourceUrls": ["https://i.redd.it/example.jpg"],
+    "authorName": "testuser"
+  },
+  "mockVisionResponse": {
+    "pagesWithMatchingImages": [
+      {
+        "url": "https://www.reddit.com/r/pics/comments/12345/some_post/",
+        "pageTitle": "Some Post",
+        "fullMatchingImages": [
+          { "url": "https://i.redd.it/duplicate.jpg" }
+        ]
+      },
+      {
+        "url": "https://external-site.com/page",
+        "pageTitle": "External Page",
+        "partialMatchingImages": [
+          { "url": "https://external-site.com/image.jpg" }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "matchCount": 1,
+    "scores": [100],
+    "matches": [
+      ["https://www.reddit.com/r/pics/comments/12345/some_post/"]
+    ]
+  }
+}

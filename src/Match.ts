@@ -27,6 +27,7 @@ export class Match
         this.authorName = authorName;
         this.setMatchList();
         this.numOriginalMatches = this.matchList.length;
+        this.numCleanedMatches = this.matchList.length;
     }
 
     /**

@@ -1,0 +1,26 @@
+{
+  "description": "Stolen content scenario with external full matches",
+  "input": {
+    "apiKey": "test-key",
+    "sourceUrls": ["https://i.redd.it/original.jpg"],
+    "authorName": "artist"
+  },
+  "mockVisionResponse": {
+    "pagesWithMatchingImages": [
+      {
+        "url": "https://art-theft.com/gallery",
+        "pageTitle": "Stolen Art",
+        "fullMatchingImages": [
+          { "url": "https://art-theft.com/images/stolen.jpg" }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "matchCount": 1,
+    "scores": [100],
+    "matches": [
+      ["https://art-theft.com/images/stolen.jpg"]
+    ]
+  }
+}

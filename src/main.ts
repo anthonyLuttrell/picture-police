@@ -58,6 +58,13 @@ Devvit.addSettings([
                 name: 'KEYWORD_HOOK_KEYWORDS',
                 label: 'Keywords',
                 helpText: "Comma-separated list of keywords or phrases to look for (case-insensitive).",
+                onValidate: async ({value}) =>
+                {
+                    if (!value || !value.includes(','))
+                    {
+                        return "Please provide a comma-separated list of keywords (must include at least one comma).";
+                    }
+                }
             },
             {
                 type: "select",

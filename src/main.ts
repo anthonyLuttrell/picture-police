@@ -1,10 +1,6 @@
 import {APP_CHANGELOG} from "./changelog";
 import {Devvit, SettingScope} from "@devvit/public-api";
-import {
-    reverseImageSearch,
-    findMatchingUsernames,
-    findMatchingSocialLinks
-} from "./scan.js";
+import {reverseImageSearch, findMatchingUsernames} from "./scan.js";
 import {
     SCAN_KEY,
     POTENTIAL_MATCH_KEY,
@@ -286,7 +282,6 @@ Devvit.addTrigger({
         );
 
         await findMatchingUsernames(context, authorName, opMatches);
-        await findMatchingSocialLinks(context, authorName, opMatches);
         const totalMatchCount = getTotalMatchCount(opMatches);
         const maxScore = getMaxScore(opMatches);
 

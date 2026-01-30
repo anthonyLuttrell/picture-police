@@ -44,16 +44,19 @@
 
 Once the app is installed on your subreddit, navigate to your **Mod Tools > Installed Apps > Picture Police** and configure the following:
 
-| Setting                | Description                                                   | Default | Recommended       |
-|:-----------------------|:--------------------------------------------------------------|:--------|-------------------|
-| **Enable Logs**        | Enable "Read logs and install history" to allow log access.   | Off     | On                |
-| **Leave a Comment**    | Choose to comment: `Never`, `Always`, or `Only on matches`.   | `Never` | `Only on matches` |
-| **Distinguish/Sticky** | Automatically labels and pins the bot's comment.              | On      | On                |
-| **Send Mod Mail**      | Notifies the mod team when a positive match is found.         | On      | On                |
-| **Max Matches**        | Maximum number of URLs to show in mod mail notifications.     | 1       | 1                 |
-| **Report Submission**  | Flags the post for manual review in the mod queue.            | Off     | Off               |
-| **Remove Submission**  | Automatically removes posts found to be stolen content.       | Off     | Off               |
-| **Action Summary**     | Enable action summaries to be sent daily, weekly, or monthly. | Off     | On/Daily          |
+| Setting                       | Description                                                      | Default | Recommended       |
+|:------------------------------|:-----------------------------------------------------------------|:--------|-------------------|
+| **Enable Logs**               | Enable "Read logs and install history" to allow log access.      | Off     | On                |
+| **Exclude Mods**              | Skip all posts from any moderator in your subreddit.             | On      | On                |
+| **App Upgrade Notifications** | Receive a mod mail notification when a new version is available. | On      | On                |
+| **Leave a Comment**           | Choose to comment: `Never`, `Always`, or `Only on matches`.      | `Never` | `Only on matches` |
+| **Distinguish/Sticky**        | Automatically labels and pins the bot's comment.                 | On      | On                |
+| **Confidence threshold**      | Any score BELOW this number will not trigger any mod action.     | 51      | 51                |
+| **Send Mod Mail**             | Notifies the mod team when a positive match is found.            | On      | On                |
+| **Max Matches**               | Maximum number of URLs to show in mod mail notifications.        | 1       | 1                 |
+| **Report Submission**         | Flags the post for manual review in the mod queue.               | Off     | Off               |
+| **Remove Submission**         | Automatically removes posts found to be stolen content.          | Off     | Off               |
+| **Action Summary**            | Enable action summaries to be sent daily, weekly, or monthly.    | Off     | On/Daily          |
 
 Settings can always be found here: `https://developers.reddit.com/r/<your-subreddit>/apps/picture-police`
 

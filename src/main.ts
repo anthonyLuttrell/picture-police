@@ -5,6 +5,8 @@ import {
     SCAN_KEY,
     POTENTIAL_MATCH_KEY,
     PROBABLE_MATCH_KEY,
+    SUB_API_REQ_COUNT_KEY,
+    DEV_API_REQ_COUNT_KEY,
     MIN_CONF,
     comment,
     getTotalMatchCount,
@@ -12,7 +14,8 @@ import {
     sendModMail,
     reportPost,
     removePost,
-    sendActionSummary,
+    sendSubActionSummary,
+    sendDevActionSummary,
     log
 } from "./utils.js";
 
@@ -92,7 +95,7 @@ Devvit.addSettings([
                 name: "CONFIDENCE_THRESHOLD",
                 label: "Confidence threshold",
                 helpText: "A confidence score BELOW this number will not trigger any mod notifications or mod actions. Comments (if enabled) will still be made.",
-                defaultValue: 50
+                defaultValue: 51
             },
             {
                 type: "boolean",
@@ -272,6 +275,9 @@ Devvit.addTrigger({
             return;
         }
 
+        await context.redis.incrBy(SUB_API_REQ_COUNT_KEY, userImgUrls.length);
+        await context.redis.incrBy(DEV_API_REQ_COUNT_KEY, userImgUrls.length);
+
         const opMatches = await reverseImageSearch(
             apiKey,
             userImgUrls,
@@ -405,7 +411,7 @@ Devvit.addMenuItem({
 });
 
 Devvit.addSchedulerJob({
-    name: 'daily_action_summary',
+    name: 'sub_action_summary',
     onRun: async (_, context) =>
     {
         const [enable, freq] = await Promise.all([
@@ -436,22 +442,40 @@ Devvit.addSchedulerJob({
 
         if (runNow && typeof freq[0] === 'string')
         {
-            await sendActionSummary(context, freq[0]);
+            await sendSubActionSummary(context, freq[0]);
         }
+    },
+});
+
+Devvit.addSchedulerJob({
+    name: 'dev_action_summary',
+    onRun: async (_, context) =>
+    {
+        const now = new Date();
+        const dayOfMonth = now.getUTCDate();
+
+        if (dayOfMonth !== 1) return;
+
+        await sendDevActionSummary(context);
     },
 });
 
 Devvit.addTrigger({
     events: ['AppInstall', 'AppUpgrade'],
     onEvent: async (_, context) =>
-    {   // clear out all the jobs first to ensure there is only ever this one
+    {   // clear out all the jobs first to keep a single instance of each job
         const jobs = await context.scheduler.listJobs();
         await Promise.all(jobs.map(job => context.scheduler.cancelJob(job.id)));
 
         await context.scheduler.runJob({
-            name: 'daily_action_summary',
+            name: 'sub_action_summary',
             cron: '0 0 * * *',
         });
+
+        await context.scheduler.runJob({
+            name: 'dev_action_summary',
+            cron: '0 0 * * *',
+        })
     },
 });
 

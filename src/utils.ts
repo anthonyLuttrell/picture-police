@@ -1,13 +1,18 @@
 import {RedditAPIClient} from "@devvit/public-api";
 import {Match} from "./Match.js";
 
+export const SUB_API_REQ_COUNT_KEY = "stats:sub_api_requests";
+export const DEV_API_REQ_COUNT_KEY = "stats:dev_api_requests";
 export const POTENTIAL_MATCH_KEY = "stats:daily_potential_matches";
 export const PROBABLE_MATCH_KEY = "stats:daily_probable_match";
 export const SCAN_KEY = "stats:daily_scans";
 export const MIN_CONF = 50; // a score BELOW this number is considered NOT confident
 
+const POST_ID_TOKEN = "[POST_ID_TOKEN]";
+const SUB_TOKEN = "[SUB_TOKEN]";
 const URL_TOKEN = "[URL_TOKEN]";
-const MAIL_LINK = `[Click here to submit feedback](https://www.reddit.com/message/compose/?to=96dpi&subject=Picture%20Police%20Feedback&message=Regarding%20post:%20${URL_TOKEN})`;
+const COMMENT_FEEDBACK_LINK = `[Click here to submit feedback](https://www.reddit.com/message/compose?to=r/${SUB_TOKEN}&subject=Picture%20Police%20Feedback&message=Regarding%20post:%20/r/${SUB_TOKEN}/comments/${POST_ID_TOKEN})`;
+const MOD_MAIL_FEEDBACK_LINK = `[Click here to submit feedback](https://www.reddit.com/message/compose/?to=96dpi&subject=Picture%20Police%20Feedback&message=Regarding%20post:%20${URL_TOKEN})`;
 const DISCLAIMER = `**Note:** Click on external links at your own risk. This `+
     `bot does not guarantee the security of any external websites you visit.`;
 
@@ -144,12 +149,12 @@ export async function comment(
     const ocCommentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
         `This image appears to be u/${authorName}'s original content. I could `+
         `not find any matching images anywhere on the web.\n\n`+
-        `---\n\n${MAIL_LINK}`;
+        `---\n\n${COMMENT_FEEDBACK_LINK}`;
 
     const ocCommentStrPlural = `🚨 **Picture Police** 🚨\n\n` +
         `These images appear to be u/${authorName}'s original content. I could `+
         `not find any matching images anywhere on the web.\n\n`+
-        `---\n\n${MAIL_LINK}`;
+        `---\n\n${COMMENT_FEEDBACK_LINK}`;
 
     const possibleOcCommentStrSingular = `🚨 **Picture Police** 🚨\n\n` +
         `I am only **${maxScore}%** confident that this is a **stolen** image. `+
@@ -167,13 +172,13 @@ export async function comment(
         `I am **${maxScore}%** confident that this is a **stolen** image. ` +
         `I found the same image on **${totalMatchCount}** other site(s). ` +
         `Here is an example of what I found:\n\n `+
-        `${urlStr}${DISCLAIMER}\n\n---\n\n${MAIL_LINK}`;
+        `${urlStr}${DISCLAIMER}\n\n---\n\n${COMMENT_FEEDBACK_LINK}`;
 
     const stolenCommentStrPlural = `🚨 **Picture Police** 🚨\n\n` +
         `I am **${maxScore}%** confident that this post contains **stolen** ` +
         `images. I found duplicate images on **${totalMatchCount}** other ` +
         `sites. Here is an example of each image found on another site:\n\n `+
-        `${urlStr}${DISCLAIMER}\n\n---\n\n${MAIL_LINK}`;
+        `${urlStr}${DISCLAIMER}\n\n---\n\n${COMMENT_FEEDBACK_LINK}`;
 
     const isOc = maxScore <= 0;
     const possibleOc = !isOc && maxScore < MIN_CONF;
@@ -206,10 +211,18 @@ export async function comment(
     {
         commentStr = stolenCommentStrPlural;
     }
+    else
+    {   // Note: this will happen when maxScore > 100
+        log("ERROR", "Unable to make comment string", postId);
+        return;
+    }
+
+    commentStr = commentStr.replaceAll(SUB_TOKEN, context.subredditName);
+    commentStr = commentStr.replace(POST_ID_TOKEN, postId.replace("t3_", ""));
 
     const comment = await context.reddit.submitComment({
         id: postId,
-        text: commentStr.replace(URL_TOKEN, postId)
+        text: commentStr
     });
 
     if (comment)
@@ -339,7 +352,7 @@ export async function sendModMail(
             `**Matches:** ${numMatches}\n\n`+
             `**Score:** ${maxScore}%\n\n`+
             `**Example ${matchStr}:**\n\n${urlStr}\n\n---\n\n`+
-            `${MAIL_LINK.replace(URL_TOKEN, url)}`;
+            `${MOD_MAIL_FEEDBACK_LINK.replace(URL_TOKEN, url)}`;
 
         const modMailId = await context.reddit.modMail.createModNotification({
             subject: "🚨 Picture Police Report 🚨",
@@ -436,30 +449,29 @@ export async function removePost(
  * @return {Promise<void>} A promise that resolves when the action summary has
  *                         been successfully sent or an error has occurred.
  */
-export async function sendActionSummary(
+export async function sendSubActionSummary(
     context: any,
     frequency: string): Promise<void>
 {
-    const [scanStr, potentialStr, probableStr] = await Promise.all([
+    const [scanStr, potentialStr, probableStr, apiCountStr] = await Promise.all([
         context.redis.get(SCAN_KEY),
         context.redis.get(POTENTIAL_MATCH_KEY),
-        context.redis.get(PROBABLE_MATCH_KEY)
+        context.redis.get(PROBABLE_MATCH_KEY),
+        context.redis.get(SUB_API_REQ_COUNT_KEY)
     ]);
 
     const totalScans = parseInt(scanStr || '0', 10);
     const potential = parseInt(potentialStr || '0', 10);
     const probable = parseInt(probableStr || '0', 10);
+    const apiCount = parseInt(apiCountStr || '0', 10);
 
     if (Number.isNaN(totalScans) ||
         Number.isNaN(potential) ||
-        Number.isNaN(probable))
+        Number.isNaN(probable) ||
+        Number.isNaN(apiCount))
     {
         log("ERROR", "Invalid Redis value(s)", "N/A");
-        await Promise.all([
-            context.redis.del(SCAN_KEY),
-            context.redis.del(POTENTIAL_MATCH_KEY),
-            context.redis.del(PROBABLE_MATCH_KEY)
-        ]);
+        await redisDeleteAll(context);
         return;
     }
 
@@ -475,17 +487,22 @@ export async function sendActionSummary(
     };
 
     const { label, range } = config[frequency] || { label: frequency, range: frequency };
+    const totalCost = apiCount * 0.0035;
 
     const summaryMarkdown = `
 ###### Here is the action summary for the last ${range}.
 
 | Metric | Count |
 | :--- | :--- |
-| **Total Scans** | ${totalScans} |
+| **Total Post Scans** | ${totalScans} |
 | **Potential Matches** | ${potential} |
 | **Probable Matches** | ${probable} |
+| **Total API Requests** | ${apiCount} |
+| **Total API Cost** | $${totalCost.toFixed(2)} |
 
 > **OC Rate:** ${ocRate}% of submissions were original content.
+
+Please consider [donating](https://www.paypal.com/donate/?hosted_button_id=ML5CBAPTWNR5A) to cover your API costs, or [buy me a coffee](https://buymeacoffee.com/picturepolice) to support ongoing development.
 
 ---
 
@@ -506,10 +523,47 @@ Manage these notifications in [your app settings](https://developers.reddit.com/
         log("ERROR", `Failed to send ${frequency} action summary`, "N/A");
     }
 
+    await redisDeleteAll(context);
+}
+
+export async function sendDevActionSummary(context: any): Promise<void>
+{
+    const apiCountStr = await context.redis.get(DEV_API_REQ_COUNT_KEY);
+    const apiCount = parseInt(apiCountStr || '0', 10);
+    if (Number.isNaN(apiCount))
+    {
+        log("ERROR", "Invalid Redis value", "dev action summary");
+        await context.redis.del(DEV_API_REQ_COUNT_KEY);
+        return;
+    }
+
+    const totalCost = apiCount * 0.0035;
+    const summaryMarkdown = `Total API Requests: ${apiCount}\n`+
+        `Total API Cost: $${totalCost.toFixed(2)}`;
+
+    try
+    {
+        await context.reddit.sendPrivateMessage({
+            to: "96dpi",
+            subject: `API usage for r/${context.subredditName}`,
+            text: summaryMarkdown.trim()
+        });
+    }
+    catch (e)
+    {
+        log("ERROR", `Failed to send ${frequency} action summary`, "N/A");
+    }
+
+    await context.redis.del(DEV_API_REQ_COUNT_KEY);
+}
+
+async function redisDeleteAll(context: any)
+{
     await Promise.all([
         context.redis.del(SCAN_KEY),
         context.redis.del(POTENTIAL_MATCH_KEY),
-        context.redis.del(PROBABLE_MATCH_KEY)
+        context.redis.del(PROBABLE_MATCH_KEY),
+        context.redis.del(SUB_API_REQ_COUNT_KEY)
     ]);
 }
 
@@ -554,26 +608,20 @@ export function isRedditAsset(url: string): boolean
            urlObj.hostname.endsWith("redditstatic.com");
 }
 
-// function getTimeDifference(originalPostDate: string, matchingPostDate: string)
-// {
-//     const d1 = new Date(originalPostDate);
-//     const d2 = new Date(matchingPostDate);
-//
-//     if (isNaN(d1.getTime()) || isNaN(d2.getTime()))
-//     {
-//         return null;
-//     }
-//
-//     const diffMs = Math.abs(d1.getTime() - d2.getTime());
-//
-//     return {
-//         totalMilliseconds: diffMs,
-//         days: Math.floor(diffMs / (1000 * 60 * 60 * 24)),
-//         hours: Math.floor((diffMs / (1000 * 60 * 60)) % 24),
-//         minutes: Math.floor((diffMs / (1000 * 60)) % 60),
-//         seconds: Math.floor((diffMs / 1000) % 60)
-//     };
-// }
+export function stripQueryString(urlStr: string | undefined): string | undefined
+{
+    if (!urlStr) return undefined;
+
+    try
+    {
+        const urlObj = new URL(urlStr);
+        return `${urlObj.origin}${urlObj.pathname}`;
+    }
+    catch (error)
+    {   // don't change anything on error, malformed URL
+        return urlStr;
+    }
+}
 
 /**
  * Logs a message with a specified log level, timestamp, and permalink.

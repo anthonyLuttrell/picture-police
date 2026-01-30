@@ -24,6 +24,7 @@ export async function reverseImageSearch(
     {
         const result = await checkGoogleVision(url, key);
         if (!result) return null;
+        // console.debug(`\n\nresult.pagesWithMatchingImages:\n\n${JSON.stringify(result.pagesWithMatchingImages, null, 2)}`);
         return new Match(result.pagesWithMatchingImages, index, authorName);
     });
 
@@ -40,15 +41,13 @@ export async function reverseImageSearch(
  * the posts.
  * @param {Match[]|[]} sourceMatches - The list of `Match` objects to search for
  * matches.
- * @return {Promise<number>} - The number of reddit OP matches found.
+ * @return {Promise<void>}
  */
 export async function findMatchingUsernames(
     context: any,
     authorName: string,
-    sourceMatches: Match[]|[]): Promise<number>
+    sourceMatches: Match[]|[]): Promise<void>
 {
-    let totalRemoved = 0;
-
     for (const match of sourceMatches)
     {
         const urlsToRemove: string[] = [];
@@ -79,5 +78,4 @@ export async function findMatchingUsernames(
         }
         match.removeMatches(urlsToRemove);
     }
-    return totalRemoved;
 }

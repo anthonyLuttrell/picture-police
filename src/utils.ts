@@ -210,6 +210,11 @@ export async function comment(
     {
         commentStr = stolenCommentStrPlural;
     }
+    else
+    {   // Note: this will happen when maxScore > 100
+        log("ERROR", "Unable to make comment string", postId);
+        return;
+    }
 
     commentStr = commentStr.replaceAll(SUB_TOKEN, context.subredditName);
     commentStr = commentStr.replace(POST_ID_TOKEN, postId.replace("t3_", ""));

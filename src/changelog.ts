@@ -8,4 +8,10 @@ export const APP_CHANGELOG: Record<string, string[]> =
         "Fix bug preventing action summaries from being sent",
         "Change OP whitelist mod menu item to a toggle and add app name to label"
     ],
+    "1.3.1": [
+        "Change confidence threshold default setting to 51",
+        "Remove query strings from direct image URLs",
+        "Support Reddit Gallery (\"redditery.com\") URLs for matching images",
+        "Change destination on comment feedback links to send to mod mail"
+    ],
 };

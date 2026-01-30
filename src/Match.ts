@@ -1,8 +1,9 @@
 import {
-    log,
     isDirectRedditImgUrl,
     isRedditAsset,
-    isRedditPermalink
+    isRedditPermalink,
+    log,
+    stripQueryString
 } from "./utils.js";
 
 /**
@@ -59,7 +60,7 @@ export class Match
         // of partial matches to add later if we don't find any full matches.
         const tempPartialMatches: string[] = [];
         const matchingPages = this.matchingImagesObj;
-        const fbLinks: string[] = [];
+        // const fbLinks: string[] = [];
 
         // Reddit only allows underscore and hyphen in usernames
         let cleanedAuthName = this.authorName.replace(/-/g, "").toLowerCase();
@@ -96,8 +97,12 @@ export class Match
                                         path.includes("r") &&
                                         !path.includes("comments");
 
+                const isRedditGallery = host.endsWith("redditery.com") &&
+                                        path.includes("user");
+
                 const isExternal = !host.endsWith("reddit.com") &&
                                    !host.includes("redd.it") &&
+                                   !host.includes("redditery.com") &&
                                    proto.includes("https");
 
                 // NOTE: Will try to use the "lookaside" links as-is for now, if
@@ -183,12 +188,16 @@ export class Match
 
                 if (hasFullMatch && isExternal)
                 {
-                    directImgLinkFullMatch = page.fullMatchingImages[0].url;
+                    directImgLinkFullMatch = stripQueryString(
+                        page.fullMatchingImages[0].url
+                    );
                 }
 
                 if (hasPartialMatch && isExternal)
                 {
-                    directImgLinkPartialMatch = page.partialMatchingImages[0].url;
+                    directImgLinkPartialMatch = stripQueryString(
+                        page.partialMatchingImages[0].url
+                    );
                 }
 
                 if (hasFullMatch && isExternal && hasDirectRedditImgUrl)
@@ -211,12 +220,13 @@ export class Match
                 }
                 else if (hasFullMatch && isExternal)
                 {   // 2nd priority
-                    if (!this.matchList.includes(directImgLinkFullMatch))
+                    if (directImgLinkFullMatch &&
+                        !this.matchList.includes(directImgLinkFullMatch))
                     {
                         this.matchList.push(directImgLinkFullMatch);
                     }
                 }
-                else if (hasFullMatch && isSubredditLink)
+                else if (hasFullMatch && (isSubredditLink || isRedditGallery))
                 {   // 3rd priority
                     for (const fullMatch of page.fullMatchingImages)
                     {
@@ -250,7 +260,8 @@ export class Match
                 }
                 else if (hasPartialMatch && isExternal)
                 {   // 5th priority
-                    if (!tempPartialMatches.includes(directImgLinkPartialMatch))
+                    if (directImgLinkPartialMatch &&
+                        !tempPartialMatches.includes(directImgLinkPartialMatch))
                     {
                         tempPartialMatches.push(directImgLinkPartialMatch);
                     }

@@ -1,7 +1,8 @@
 import {RedditAPIClient} from "@devvit/public-api";
 import {Match} from "./Match.js";
 
-export const GVIS_API_REQ_COUNT_KEY = "stats:gvis_api_requests";
+export const SUB_API_REQ_COUNT_KEY = "stats:sub_api_requests";
+export const DEV_API_REQ_COUNT_KEY = "stats:dev_api_requests";
 export const POTENTIAL_MATCH_KEY = "stats:daily_potential_matches";
 export const PROBABLE_MATCH_KEY = "stats:daily_probable_match";
 export const SCAN_KEY = "stats:daily_scans";
@@ -448,7 +449,7 @@ export async function removePost(
  * @return {Promise<void>} A promise that resolves when the action summary has
  *                         been successfully sent or an error has occurred.
  */
-export async function sendActionSummary(
+export async function sendSubActionSummary(
     context: any,
     frequency: string): Promise<void>
 {
@@ -456,7 +457,7 @@ export async function sendActionSummary(
         context.redis.get(SCAN_KEY),
         context.redis.get(POTENTIAL_MATCH_KEY),
         context.redis.get(PROBABLE_MATCH_KEY),
-        context.redis.get(GVIS_API_REQ_COUNT_KEY)
+        context.redis.get(SUB_API_REQ_COUNT_KEY)
     ]);
 
     const totalScans = parseInt(scanStr || '0', 10);
@@ -486,7 +487,7 @@ export async function sendActionSummary(
     };
 
     const { label, range } = config[frequency] || { label: frequency, range: frequency };
-    const totalCost = totalScans * 0.0035;
+    const totalCost = apiCount * 0.0035;
 
     const summaryMarkdown = `
 ###### Here is the action summary for the last ${range}.
@@ -501,6 +502,8 @@ export async function sendActionSummary(
 
 > **OC Rate:** ${ocRate}% of submissions were original content.
 
+Please consider [donating](https://www.paypal.com/donate/?hosted_button_id=ML5CBAPTWNR5A) to cover your API costs, or [buy me a coffee](https://buymeacoffee.com/picturepolice) to support ongoing development.
+
 ---
 
 Manage these notifications in [your app settings](https://developers.reddit.com/r/${context.subredditName}/apps/picture-police).
@@ -508,12 +511,6 @@ Manage these notifications in [your app settings](https://developers.reddit.com/
 
     try
     {
-        await context.reddit.sendPrivateMessage({
-            to: "96dpi",
-            subject: `Picture Police ${label} Action Summary for r/${context.subredditName}`,
-            text: summaryMarkdown.trim()
-        });
-
         await context.reddit.modMail.createModNotification({
             subject: `🛡️ Picture Police ${label} Action Summary 🛡️`,
             bodyMarkdown: summaryMarkdown.trim(),
@@ -529,13 +526,44 @@ Manage these notifications in [your app settings](https://developers.reddit.com/
     await redisDeleteAll(context);
 }
 
+export async function sendDevActionSummary(context: any): Promise<void>
+{
+    const apiCountStr = await context.redis.get(DEV_API_REQ_COUNT_KEY);
+    const apiCount = parseInt(apiCountStr || '0', 10);
+    if (Number.isNaN(apiCount))
+    {
+        log("ERROR", "Invalid Redis value", "dev action summary");
+        await context.redis.del(DEV_API_REQ_COUNT_KEY);
+        return;
+    }
+
+    const totalCost = apiCount * 0.0035;
+    const summaryMarkdown = `Total API Requests: ${apiCount}\n`+
+        `Total API Cost: $${totalCost.toFixed(2)}`;
+
+    try
+    {
+        await context.reddit.sendPrivateMessage({
+            to: "96dpi",
+            subject: `API usage for r/${context.subredditName}`,
+            text: summaryMarkdown.trim()
+        });
+    }
+    catch (e)
+    {
+        log("ERROR", `Failed to send ${frequency} action summary`, "N/A");
+    }
+
+    await context.redis.del(DEV_API_REQ_COUNT_KEY);
+}
+
 async function redisDeleteAll(context: any)
 {
     await Promise.all([
         context.redis.del(SCAN_KEY),
         context.redis.del(POTENTIAL_MATCH_KEY),
         context.redis.del(PROBABLE_MATCH_KEY),
-        context.redis.del(GVIS_API_REQ_COUNT_KEY)
+        context.redis.del(SUB_API_REQ_COUNT_KEY)
     ]);
 }
 
@@ -594,27 +622,6 @@ export function stripQueryString(urlStr: string | undefined): string | undefined
         return urlStr;
     }
 }
-
-// function getTimeDifference(originalPostDate: string, matchingPostDate: string)
-// {
-//     const d1 = new Date(originalPostDate);
-//     const d2 = new Date(matchingPostDate);
-//
-//     if (isNaN(d1.getTime()) || isNaN(d2.getTime()))
-//     {
-//         return null;
-//     }
-//
-//     const diffMs = Math.abs(d1.getTime() - d2.getTime());
-//
-//     return {
-//         totalMilliseconds: diffMs,
-//         days: Math.floor(diffMs / (1000 * 60 * 60 * 24)),
-//         hours: Math.floor((diffMs / (1000 * 60 * 60)) % 24),
-//         minutes: Math.floor((diffMs / (1000 * 60)) % 60),
-//         seconds: Math.floor((diffMs / 1000) % 60)
-//     };
-// }
 
 /**
  * Logs a message with a specified log level, timestamp, and permalink.

@@ -6,7 +6,8 @@ export const APP_CHANGELOG: Record<string, string[]> =
         "Support Reddit Gallery (\"redditery.com\") URLs for matching images",
         "Change destination on comment feedback links to send to mod mail",
         "Add API usage stats to action summaries",
-        "Improve matching logic"
+        "Improve matching logic",
+        "Add monthly API usage summaries to be sent to developer"
     ],
     "1.3.0": [
         "Add a setting to send mod mail notifications when a new version of Picture Police is published",

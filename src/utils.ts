@@ -28,14 +28,34 @@ export async function getOpFromUrl(
     url: string,
     reddit: RedditAPIClient): Promise<string | undefined>
 {
-    // FIXME this should use the URL Object (new URL)
-    const match = url.match(/\/comments\/([a-z0-9]+)/i);
-    if (!match)
+    let id: string | undefined;
+    try
+    {
+        const urlObj = new URL(url);
+        const parts = urlObj.pathname.split('/');
+        const commentsIndex = parts.findIndex(p => p.toLowerCase() === 'comments');
+
+        if (commentsIndex !== -1 && commentsIndex + 1 < parts.length)
+        {
+            const segment = parts[commentsIndex + 1];
+            const match = segment.match(/^([a-z0-9]+)/i);
+            if (match)
+            {
+                id = match[1];
+            }
+        }
+    }
+    catch (e)
     {
         return undefined;
     }
 
-    const postId = `t3_${match[1]}`;
+    if (!id)
+    {
+        return undefined;
+    }
+
+    const postId = `t3_${id}`;
     try
     {
         const post = await reddit.getPostById(postId);

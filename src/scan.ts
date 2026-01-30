@@ -1,6 +1,7 @@
 import {checkGoogleVision} from "./gvis.js";
 import {getOpFromUrl} from "./utils.js";
 import {Match} from "./Match.js";
+import {checkUrl} from "./webScraper.js";
 
 /**
  * Performs a reverse image search using the provided API key and list of image
@@ -73,6 +74,14 @@ export async function findMatchingUsernames(
                          foundAuthor === "[deleted]")
                 {
                     match.isDeleted = true;
+                }
+            }
+            else
+            {
+                const confidence = await checkUrl(url, authorName);
+                if (confidence >= 80)
+                {
+                    urlsToRemove.push(url);
                 }
             }
         }

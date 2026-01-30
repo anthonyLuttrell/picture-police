@@ -5,6 +5,7 @@ import {
     log,
     stripQueryString
 } from "./utils.js";
+import {calculateConfidence} from "./usernameUtils.js";
 
 interface UrlObj { url: string; }
 interface Page
@@ -77,10 +78,12 @@ export class Match
         for (const page of matchingPages)
         {
             const url = page.url.toLowerCase();
+            const fullMatchUrl = page.fullMatchingImages?.[0]?.url ?? "";
+            const partMatchUrl = page.partialMatchingImages?.[0]?.url ?? "";
 
-            if (this.usernameInUrl(url) ||
-                this.usernameInUrl(page.fullMatchingImages?.[0].url ?? "") ||
-                this.usernameInUrl(page.partialMatchingImages?.[0].url ?? ""))
+            if (calculateConfidence(this.authorName, url) >= 90 ||
+                calculateConfidence(this.authorName, fullMatchUrl) >= 90 ||
+                calculateConfidence(this.authorName, partMatchUrl) >= 90)
             {   // Must check fullMatch and partialMatch because they are
                 // optional members of the page object, and they can be totally
                 // different links than page.url.
@@ -283,26 +286,6 @@ export class Match
                 this.onlyDirectImgUrl = true;
             }
         }
-    }
-
-    private usernameInUrl(url: string): boolean
-    {
-        if (url === "") return false; // quick out
-
-        const urlObj = new URL(url);
-        // Reddit only allows underscores and hyphens in usernames
-        let cleanUserName = this.authorName.replace(/-/g, "").toLowerCase();
-        cleanUserName = cleanUserName.replace(/_/g, "");
-
-        // Underscores are not recommended in URLs, so we will try with a hyphen
-        const hyphenUserName = this.authorName.replace(/_/g, "-").toLowerCase();
-
-        return urlObj.hostname.includes(this.authorName.toLowerCase()) ||
-               urlObj.hostname.includes(cleanUserName) ||
-               urlObj.hostname.includes(hyphenUserName) ||
-               urlObj.pathname.includes(this.authorName.toLowerCase()) ||
-               urlObj.pathname.includes(cleanUserName) ||
-               urlObj.pathname.includes(hyphenUserName);
     }
 
     private getLookasideLink(matches: MatchArr): string | null

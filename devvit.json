@@ -11,7 +11,14 @@
     },
     "http": {
       "enable": true,
-      "domains": ["reddit.com", "redd.it", "vision.googleapis.com"]
+      "domains": [
+        "reddit.com",
+        "redd.it",
+        "vision.googleapis.com",
+        "facebook.com",
+        "instagram.com",
+        "pinterest.com"
+      ]
     },
     "redis": true
   }

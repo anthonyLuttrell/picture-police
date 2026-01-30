@@ -551,7 +551,7 @@ export async function sendDevActionSummary(context: any): Promise<void>
     }
     catch (e)
     {
-        log("ERROR", `Failed to send ${frequency} action summary`, "N/A");
+        log("ERROR", `Failed to send dev action summary`, "N/A");
     }
 
     await context.redis.del(DEV_API_REQ_COUNT_KEY);

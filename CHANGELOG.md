@@ -1,5 +1,32 @@
 ## Changelog
 
+### Version 1.3.1
+* Change confidence threshold default setting to 51
+* Remove query strings from direct image URLs
+* Support Reddit Gallery ("redditery.com") URLs for matching images
+* Change destination on comment feedback links to send to mod mail
+* Change confidence threshold default setting to 51
+* Remove query strings from direct image URLs
+* Support Reddit Gallery ("redditery.com") URLs for matching images
+* Change destination on comment feedback links to send to mod mail
+* Compare external URLs to author's social links on their Reddit profile
+* Add API usage stats to action summaries
+* Add interface and type definitions
+* Improve matching logic
+* Add better error handling when generating comments
+* Add monthly API usage summaries to be sent to developer
+
+### Version 1.3.0
+* Add a setting to send mod mail notifications when a new version of Picture Police is published
+* Add a setting to exclude mods from all Picture Police scans
+* Reduce false positives on partial matches when only direct Reddit image links are found
+* Change all external (non-Reddit) website links to direct-image links
+* Fix bug preventing action summaries from being sent
+* Change OP whitelist mod menu item to a toggle and add app name to label
+
+### Version 1.2.2
+* Merge pull request #27 from ninetySixDPI/dev
+
 ### Version 1.2.1
 * Fix an issue where the wrong Reddit URLs were being added to the match list.
 * Add a new installation setting to set a minimum confidence score at which mod actions will be completed.

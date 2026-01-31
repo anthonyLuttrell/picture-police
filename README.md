@@ -12,12 +12,6 @@
 > \$3.50 USD. For example, 5,000 requests in one month will cost \$14.00. 
 > Because of this, rate limits may apply in the future, if the monthly cost 
 > becomes unreasonable.
-> 
-> Please consider [donating](https://www.paypal.com/donate/?hosted_button_id=ML5CBAPTWNR5A) to cover API costs. Any rate limits applied 
-> will be adjusted upon donation. Be sure to mention your subreddit's name if
-> you choose to donate.
-> 
-> As of v1.1.8, there are no active rate limits for any installations.
 
 ---
 

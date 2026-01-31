@@ -502,8 +502,6 @@ export async function sendSubActionSummary(
 
 > **OC Rate:** ${ocRate}% of submissions were original content.
 
-Please consider [donating](https://www.paypal.com/donate/?hosted_button_id=ML5CBAPTWNR5A) to cover your API costs, or [buy me a coffee](https://buymeacoffee.com/picturepolice) to support ongoing development.
-
 ---
 
 Manage these notifications in [your app settings](https://developers.reddit.com/r/${context.subredditName}/apps/picture-police).

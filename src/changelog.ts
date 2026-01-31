@@ -1,5 +1,8 @@
 export const APP_CHANGELOG: Record<string, string[]> =
 {
+    "1.3.2.": [
+        "Remove all links to external donations, per Reddit terms of use"
+    ],
     "1.3.1": [
         "Change confidence threshold default setting to 51",
         "Remove unnecessary query strings from direct image URLs",
